@@ -118,6 +118,46 @@ class VaultTree(Gtk.Box):
         """Rebuild the tree from the current vault paths."""
         self.set_vaults(self._vault_paths)
 
+    def get_expanded_paths(self) -> list[str]:
+        """Return all currently expanded directory paths."""
+        expanded: list[str] = []
+        def _walk(iter_):
+            path = self._store.get_value(iter_, _COL_PATH)
+            if self._tree_view.row_expanded(
+                self._store.get_path(iter_)
+            ):
+                expanded.append(path)
+            child = self._store.iter_children(iter_)
+            while child:
+                if self._store.get_value(child, _COL_IS_DIR):
+                    _walk(child)
+                child = self._store.iter_next(child)
+        # Walk ALL top-level items (one per vault).
+        iter_ = self._store.get_iter_first()
+        while iter_:
+            _walk(iter_)
+            iter_ = self._store.iter_next(iter_)
+        return expanded
+
+    def expand_paths(self, paths: list[str]) -> None:
+        """Expand the directories listed in *paths*."""
+        path_set = set(paths)
+        def _walk(iter_):
+            dir_path = self._store.get_value(iter_, _COL_PATH)
+            if dir_path in path_set:
+                tree_path = self._store.get_path(iter_)
+                self._tree_view.expand_row(tree_path, False)
+            child = self._store.iter_children(iter_)
+            while child:
+                if self._store.get_value(child, _COL_IS_DIR):
+                    _walk(child)
+                child = self._store.iter_next(child)
+        # Walk ALL top-level items (one per vault).
+        iter_ = self._store.get_iter_first()
+        while iter_:
+            _walk(iter_)
+            iter_ = self._store.iter_next(iter_)
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

@@ -12,9 +12,10 @@ import markdown as md
 import gi
 
 gi.require_version("Gtk", "4.0")
+gi.require_version("Adw", "1")
 gi.require_version("WebKit", "6.0")
 
-from gi.repository import Gtk, WebKit, GObject
+from gi.repository import Gtk, Adw, WebKit, GObject, Gdk
 
 
 HTML_TEMPLATE = """\
@@ -23,6 +24,16 @@ HTML_TEMPLATE = """\
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root {{
+    --bg: {bg_color};
+    --fg: {fg_color};
+    --accent: {accent_color};
+    --dim: {dim_color};
+    --card-bg: {card_bg_color};
+    --borders: {borders_color};
+}}
+</style>
 <link rel="stylesheet" href="file://{css_path}">
 </head>
 <body>
@@ -60,6 +71,12 @@ class Preview(Gtk.ScrolledWindow):
         self._web_view.set_vexpand(True)
         self._web_view.set_hexpand(True)
 
+        # Match WebView background to the GTK theme.
+        colors = self._get_theme_colors()
+        bg = Gdk.RGBA()
+        bg.parse(colors["bg_color"])
+        self._web_view.set_background_color(bg)
+
         web_settings = self._web_view.get_settings()
         web_settings.set_enable_javascript(False)
 
@@ -81,9 +98,49 @@ class Preview(Gtk.ScrolledWindow):
             extension_configs=EXTENSION_CONFIGS,
         )
         css_path = self._resolve_css_path()
-        full_html = HTML_TEMPLATE.format(css_path=css_path, content=html_content)
+        colors = self._get_theme_colors()
+        full_html = HTML_TEMPLATE.format(
+            css_path=css_path,
+            content=html_content,
+            **colors,
+        )
         base_uri = f"file://{base_dir}/" if base_dir else None
         self._web_view.load_html(full_html, base_uri)
+
+    @staticmethod
+    def _get_theme_colors() -> dict[str, str]:
+        """Read current GTK theme colours and return them as CSS colour strings."""
+        probe = Gtk.Label()
+        ctx = probe.get_style_context()
+
+        ok, fg = ctx.lookup_color("theme_fg_color")
+        if not ok:
+            fg = Gdk.RGBA()
+            fg.parse("#000000")
+        ok, bg = ctx.lookup_color("theme_bg_color")
+        if not ok:
+            bg = Gdk.RGBA()
+            bg.parse("#ffffff")
+
+        def _named(name: str, fallback: Gdk.RGBA) -> str:
+            ok, c = ctx.lookup_color(name)
+            return c.to_string() if ok else fallback.to_string()
+
+        return {
+            "bg_color": bg.to_string(),
+            "fg_color": fg.to_string(),
+            "accent_color": _named("accent_bg_color", fg),
+            "dim_color": _named("dim_label_color", fg),
+            "card_bg_color": _named("card_bg_color", bg),
+            "borders_color": _named("borders_color", fg),
+        }
+
+    def update_theme(self) -> None:
+        """Update the WebView background to match the current GTK theme."""
+        colors = self._get_theme_colors()
+        bg = Gdk.RGBA()
+        bg.parse(colors["bg_color"])
+        self._web_view.set_background_color(bg)
 
     # ------------------------------------------------------------------
     # Internal

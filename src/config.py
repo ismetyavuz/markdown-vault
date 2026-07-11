@@ -80,3 +80,39 @@ def remove_vault(path: str) -> list[dict[str, str]]:
     vaults = [v for v in load_vaults() if v["path"] != abs_path]
     save_vaults(vaults)
     return load_vaults()
+
+
+# ── App settings ────────────────────────────────────────────────────
+
+_DEFAULT_SETTINGS = {
+    "autosave_interval": 30,
+}
+
+
+def load_settings() -> dict:
+    """Load app settings from vaults.yaml, with safe defaults."""
+    if not CONFIG_FILE.exists():
+        return dict(_DEFAULT_SETTINGS)
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as fh:
+            data = yaml.safe_load(fh) or {}
+    except (yaml.YAMLError, OSError):
+        return dict(_DEFAULT_SETTINGS)
+    settings = dict(_DEFAULT_SETTINGS)
+    settings.update(data.get("settings", {}))
+    return settings
+
+
+def save_settings(settings: dict) -> None:
+    """Persist settings into vaults.yaml (merged with existing vaults)."""
+    _ensure_config_dir()
+    existing: dict = {}
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as fh:
+                existing = yaml.safe_load(fh) or {}
+        except (yaml.YAMLError, OSError):
+            existing = {}
+    existing["settings"] = settings
+    with open(CONFIG_FILE, "w", encoding="utf-8") as fh:
+        yaml.dump(existing, fh, default_flow_style=False, sort_keys=False)

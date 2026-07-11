@@ -4,14 +4,34 @@ Creates the ``Adw.Application`` instance and launches the main window.
 Run this module directly with ``python3 -m src.main``.
 """
 
+import faulthandler
+import logging
+import os
 import sys
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s %(name)s %(levelname)s %(message)s",
+    stream=sys.stderr,
+)
+logger = logging.getLogger("markdown-vault")
+
+faulthandler.enable(sys.stderr)
+
+if os.environ.get("MARKDOWN_VAULT_DEBUG"):
+    import signal
+
+    def _sigusr1(_sig, _frame):
+        faulthandler.dump_traceback()
+
+    signal.signal(signal.SIGUSR1, _sigusr1)
 
 import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
-from gi.repository import Adw, Gio
+from gi.repository import Adw, Gio, GLib
 
 from .app_window import MainWindow
 
@@ -25,6 +45,7 @@ class MarkdownVaultApp(Adw.Application):
             flags=Gio.ApplicationFlags.FLAGS_NONE,
         )
         self.connect("activate", self._on_activate)
+        self.connect("shutdown", lambda *_: logger.info("shutdown signal received"))
         self._setup_accels()
 
     def _setup_accels(self) -> None:
@@ -36,14 +57,19 @@ class MarkdownVaultApp(Adw.Application):
 
     def _on_activate(self, app: "MarkdownVaultApp") -> None:
         """Present the main window when the application is activated."""
+        logger.info("activate signal received")
         win = MainWindow(app)
         win.present()
+        logger.info("main window presented")
 
 
 def main() -> int:
     """Application entry point."""
+    logger.info("app starting (pid=%d)", os.getpid())
     app = MarkdownVaultApp()
-    return app.run(sys.argv)
+    ret = app.run(sys.argv)
+    logger.info("app.run() returned %s", ret)
+    return ret
 
 
 if __name__ == "__main__":

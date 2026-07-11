@@ -81,6 +81,22 @@ meson.build            — build system
 # Run from source (no install needed)
 python3 -m src.main
 
+# Run detached for manual testing (survives bash tool timeout)
+setsid python3 -m src.main >tmp/mv-stdout.log 2>tmp/mv-stderr.log &
+disown
+# Check logs: tail -f tmp/mv-stderr.log
+# Kill later: pkill -f "src.main"
+
+# IMPORTANT: Before starting a new instance for testing, ALWAYS kill
+# all existing instances first to avoid duplicate windows:
+# pkill -f "python3 -m src.main" || true
+
+# Run detached for manual testing (survives bash tool timeout)
+setsid python3 -m src.main >tmp/mv-stdout.log 2>tmp/mv-stderr.log &
+disown
+# Check logs: tail -f tmp/mv-stderr.log
+# Kill later: pkill -f "src.main"
+
 # Install dependencies (openSUSE Tumbleweed)
 sudo zypper install python3-gobject python3-gobject-Gdk gtk4-devel gtk4-tools \
   libadwaita-devel gtksourceview5-devel webkitgtk4-devel \
@@ -128,3 +144,6 @@ python3 -m unittest discover -s tests -v
 - GtkSourceView needs `gi.require_version("GtkSource", "5")` — version 4 is for GTK3.
 - `vaults.yaml` must never contain duplicate vault paths; deduplicate on load.
 - On Flatpak, file access is sandboxed — use `org.freedesktop.portal` for file chooser.
+- GtkSourceView 5 renamed `begin_not_undoable_action` → `begin_irreversible_action`.
+- `editor.file_path` is a `str`, not `Path` — use `Path(editor.file_path).parent` for directory.
+- Kill all existing app instances before starting a new one (`pkill -f "python3 -m src.main" || true`). Duplicate instances cause confusing state.

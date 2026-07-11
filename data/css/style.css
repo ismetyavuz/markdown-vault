@@ -2,10 +2,15 @@
     font-family: "Cantarell", "Noto Sans", sans-serif;
     font-size: 16px;
     line-height: 1.6;
-    color: @theme_text_color;
+    color: var(--fg);
+    background-color: var(--bg);
     max-width: 800px;
     margin: 0 auto;
     padding: 20px;
+}
+
+body {
+    background-color: var(--bg);
 }
 
 .markdown-body h1,
@@ -20,8 +25,8 @@
     line-height: 1.25;
 }
 
-.markdown-body h1 { font-size: 2em; border-bottom: 1px solid @borders; padding-bottom: 0.3em; }
-.markdown-body h2 { font-size: 1.5em; border-bottom: 1px solid @borders; padding-bottom: 0.3em; }
+.markdown-body h1 { font-size: 2em; border-bottom: 1px solid var(--borders); padding-bottom: 0.3em; }
+.markdown-body h2 { font-size: 1.5em; border-bottom: 1px solid var(--borders); padding-bottom: 0.3em; }
 .markdown-body h3 { font-size: 1.25em; }
 
 .markdown-body p {
@@ -30,7 +35,7 @@
 }
 
 .markdown-body code {
-    background: @card_bg_color;
+    background: var(--card_bg_color);
     padding: 0.2em 0.4em;
     border-radius: 6px;
     font-size: 85%;
@@ -38,7 +43,7 @@
 }
 
 .markdown-body pre {
-    background: @card_bg_color;
+    background: var(--card_bg_color);
     padding: 16px;
     border-radius: 6px;
     overflow-x: auto;
@@ -53,10 +58,10 @@
 }
 
 .markdown-body blockquote {
-    border-left: 4px solid @accent_color;
+    border-left: 4px solid var(--accent);
     margin: 0 0 16px 0;
     padding: 0 16px;
-    color: @dim_label_color;
+    color: var(--dim);
 }
 
 .markdown-body ul,
@@ -70,7 +75,7 @@
 }
 
 .markdown-body a {
-    color: @accent_color;
+    color: var(--accent);
     text-decoration: none;
 }
 
@@ -92,22 +97,22 @@
 .markdown-body table th,
 .markdown-body table td {
     padding: 8px 12px;
-    border: 1px solid @borders;
+    border: 1px solid var(--borders);
     text-align: left;
 }
 
 .markdown-body table th {
-    background: @card_bg_color;
+    background: var(--card_bg_color);
     font-weight: 600;
 }
 
 .markdown-body table tr:nth-child(even) {
-    background: @card_bg_color;
+    background: var(--card_bg_color);
 }
 
 .markdown-body hr {
     border: none;
-    border-top: 1px solid @borders;
+    border-top: 1px solid var(--borders);
     margin: 24px 0;
 }
 
@@ -127,11 +132,11 @@
 }
 
 .tab.active {
-    background: @card_bg_color;
+    background: var(--card_bg_color);
 }
 
 .tab:hover {
-    background: alpha(@card_bg_color, 0.7);
+    background: color-mix(in srgb, var(--card_bg_color) 70%, transparent);
 }
 
 .search-result {
@@ -140,7 +145,7 @@
 }
 
 .search-result:hover {
-    background: @card_bg_color;
+    background: var(--card_bg_color);
 }
 
 .outline-item {
@@ -149,7 +154,7 @@
 }
 
 .outline-item:hover {
-    background: @card_bg_color;
+    background: var(--card_bg_color);
 }
 
 .mono {

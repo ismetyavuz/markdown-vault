@@ -106,6 +106,10 @@ class TabBar(Gtk.Box):
             else:
                 self._current_path = None
 
+    def get_tab(self, file_path: str) -> Tab | None:
+        """Return the ``Tab`` for *file_path*, or ``None``."""
+        return self._tabs.get(file_path)
+
     def get_current_tab(self) -> Tab | None:
         """Return the ``Tab`` for the active tab, or ``None``."""
         if self._current_path and self._current_path in self._tabs:

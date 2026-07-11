@@ -5,6 +5,18 @@ import unittest
 from src.preview import Preview, HTML_TEMPLATE, MARKDOWN_EXTENSIONS
 
 
+_TEMPLATE_KWARGS = dict(
+    css_path="/style.css",
+    content="<p>Hi</p>",
+    bg_color="#ffffff",
+    fg_color="#000000",
+    accent_color="#3584e4",
+    dim_color="#77767b",
+    card_bg_color="#f0f0f0",
+    borders_color="#cdc7c2",
+)
+
+
 class TestHtmlTemplate(unittest.TestCase):
     """Verify the HTML template structure."""
 
@@ -13,9 +25,11 @@ class TestHtmlTemplate(unittest.TestCase):
         self.assertIn("{content}", HTML_TEMPLATE)
 
     def test_template_is_valid_html(self):
-        rendered = HTML_TEMPLATE.format(css_path="/style.css", content="<p>Hi</p>")
+        rendered = HTML_TEMPLATE.format(**_TEMPLATE_KWARGS)
         self.assertIn("<!DOCTYPE html>", rendered)
         self.assertIn("<p>Hi</p>", rendered)
+        self.assertIn("--bg:", rendered)
+        self.assertIn("--fg:", rendered)
 
 
 class TestMarkdownConversion(unittest.TestCase):
