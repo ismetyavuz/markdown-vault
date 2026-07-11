@@ -24,22 +24,96 @@ A GNOME desktop application for editing and previewing Markdown files organized 
 
 ### Install dependencies
 
-Fedora:
+<details>
+<summary><strong>openSUSE Tumbleweed</strong></summary>
 
 ```sh
-sudo dnf install gtk4 libadwaita webkitgtk6.0 gtksourceview5 python3-gobject python3-markdown python3-pyyaml python3-pygit2
+sudo zypper install \
+  python3-gobject \
+  python3-gobject-Gdk \
+  gtk4-devel \
+  gtk4-tools \
+  libadwaita-devel \
+  libgtksourceview-5-0-devel \
+  libwebkitgtk-6_0-devel \
+  gobject-introspection-devel \
+  python3-PyYAML \
+  python3-markdown \
+  meson \
+  gcc
 ```
+</details>
 
-Ubuntu/Debian:
+<details>
+<summary><strong>Fedora</strong></summary>
 
 ```sh
-sudo apt install libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev libgtksourceview-5-dev python3-gi python3-markdown python3-yaml python3-pygit2
+sudo dnf install \
+  python3-gobject \
+  gtk4-devel \
+  libadwaita-devel \
+  gtksourceview5-devel \
+  webkit2gtk6.0-devel \
+  gobject-introspection-devel \
+  python3-markdown \
+  python3-pyyaml \
+  meson \
+  gcc
 ```
+</details>
+
+<details>
+<summary><strong>Ubuntu / Debian</strong></summary>
+
+```sh
+sudo apt install \
+  python3-gi \
+  python3-gi-cairo \
+  gir1.2-gtk-4.0 \
+  libgtk-4-dev \
+  libadwaita-1-dev \
+  libwebkitgtk-6.0-dev \
+  libgtksourceview-5-dev \
+  libgirepository1.0-dev \
+  python3-markdown \
+  python3-yaml \
+  meson \
+  gcc
+```
+</details>
+
+<details>
+<summary><strong>Arch Linux</strong></summary>
+
+```sh
+sudo pacman -S \
+  python \
+  python-gobject \
+  gtk4 \
+  libadwaita \
+  webkitgtk-6.0 \
+  gtksourceview5 \
+  python-markdown \
+  python-pyyaml \
+  gobject-introspection \
+  meson \
+  gcc
+```
+</details>
+
+<details>
+<summary><strong>Flatpak (any distribution)</strong></summary>
+
+```sh
+flatpak-builder --user --install --force-clean build-dir \
+  de.hannemann.markdown-vault.yml
+```
+</details>
 
 ## Run from source
 
 ```sh
-python -m src.main
+python3 -m src.main
 ```
 
 ## Build & Install

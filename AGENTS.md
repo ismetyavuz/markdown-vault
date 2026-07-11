@@ -79,13 +79,26 @@ meson.build            — build system
 
 ```bash
 # Run from source (no install needed)
-python -m src.main
+python3 -m src.main
+
+# Install dependencies (openSUSE Tumbleweed)
+sudo zypper install python3-gobject python3-gobject-Gdk gtk4-devel gtk4-tools \
+  libadwaita-devel libgtksourceview-5-0-devel libwebkitgtk-6_0-devel \
+  gobject-introspection-devel python3-PyYAML python3-markdown meson gcc
 
 # Install dependencies (Fedora)
-sudo dnf install gtk4 libadwaita webkitgtk6.0 gtksourceview5 python3-gobject python3-markdown python3-pyyaml python3-pygit2
+sudo dnf install python3-gobject gtk4-devel libadwaita-devel gtksourceview5-devel \
+  webkit2gtk6.0-devel gobject-introspection-devel python3-markdown \
+  python3-pyyaml meson gcc
 
 # Install dependencies (Ubuntu/Debian)
-sudo apt install libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev libgtksourceview-5-dev python3-gi python3-markdown python3-yaml python3-pygit2
+sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0 libgtk-4-dev \
+  libadwaita-1-dev libwebkitgtk-6.0-dev libgtksourceview-5-dev \
+  libgirepository1.0-dev python3-markdown python3-yaml meson gcc
+
+# Install dependencies (Arch)
+sudo pacman -S python python-gobject gtk4 libadwaita webkitgtk-6.0 \
+  gtksourceview5 python-markdown python-pyyaml gobject-introspection meson gcc
 
 # Build with meson
 meson setup builddir
@@ -96,7 +109,7 @@ meson install -C builddir
 flatpak-builder --user --install --force-clean build-dir de.hannemann.markdown-vault.yml
 
 # Run tests
-python -m pytest tests/
+python3 -m unittest discover -s tests -v
 ```
 
 ## Conventions
