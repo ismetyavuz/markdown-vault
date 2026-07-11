@@ -4,12 +4,13 @@ A GNOME desktop application for editing and previewing Markdown files organized 
 
 ## Features
 
-- **Three-panel layout** — vault file tree, editor, and live preview
+- **Three-panel layout** — vault file tree (left), editor/preview (center), sidebar (right, toggleable)
 - **Multiple vaults** — work with several Markdown directories at once
 - **View modes** — Edit, Render, or Split (side-by-side)
 - **Tab system** — open multiple files simultaneously
+- **Sidebar** — outline, backlinks, git status, file details
 - **Git integration** — status indicators, diff, commit
-- **Full-text search** — search across all open vaults
+- **Full-text search** — bottom bar across all vaults (Ctrl+F)
 - **Tags & backlinks** — wikilink-style `[[page]]` navigation
 - **Customizable keybindings** — GNOME defaults, optional vim/emacs modes
 

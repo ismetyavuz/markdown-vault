@@ -1,0 +1,37 @@
+app-id: de.hannemann.markdown-vault
+runtime: org.gnome.Platform
+runtime-version: '47'
+sdk: org.gnome.Sdk
+command: markdown-vault
+
+finish-args:
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --filesystem=home
+  - --talk-name=org.freedesktop.portal.FileChooser
+
+modules:
+  - name: markdown-vault
+    buildsystem: meson
+    sources:
+      - type: dir
+        path: .
+
+  - name: python3-markdown
+    buildsystem: simple
+    build-commands:
+      - pip3 install --verbose --no-index --find-links="file://${PWD}" --prefix=${FLATPAK_DEST} markdown
+    sources:
+      - type: archive
+        url: https://files.pythonhosted.org/packages/38/ec/a5b749db07f9e7e72f1042ea03968e73a19f1c05538103df273000891f3f/Markdown-3.7-py3-none-any.whl
+        sha256: d99c8664e19bfe590c981f0f0c814c56a05c50a7e3de23a2a63cdae47c40fcb0
+
+  - name: python3-pyyaml
+    buildsystem: simple
+    build-commands:
+      - pip3 install --verbose --no-index --find-links="file://${PWD}" --prefix=${FLATPAK_DEST} pyyaml
+    sources:
+      - type: archive
+        url: https://files.pythonhosted.org/packages/ce/40/5b4968cab115b4b43c41e42e9d3b8a5bdb06d8d4c2c48c4b9f4d1c5c9c4d/PyYAML-6.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+        sha256: 936b503e4782e6f79d34a3683e5dce6e8ec1e63e7a9e94f63e81f93c1f5673c5

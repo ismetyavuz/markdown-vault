@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>de.hannemann.markdown-vault</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Markdown Vault</name>
+  <summary>Edit and preview Markdown files organized in vaults</summary>
+  <description>
+    <p>
+      Markdown Vault is a GNOME desktop application for editing and previewing
+      Markdown files organized in vault directories. It features a three-panel
+      layout with a vault tree browser, editor with syntax highlighting, and
+      live preview.
+    </p>
+  </description>
+  <url type="homepage">https://github.com/hannemann/markdown-vault</url>
+  <launchable type="desktop-id">de.hannemann.markdown-vault.desktop</launchable>
+  <developer id="de.hannemann">
+    <name>hannemann</name>
+  </developer>
+  <translation type="gettext">markdown-vault</translation>
+  <releases>
+    <release version="0.1.0" date="2025-01-01">
+      <description>
+        <p>Initial release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

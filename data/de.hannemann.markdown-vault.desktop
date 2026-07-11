@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Markdown Vault
+Comment=Edit and preview Markdown files in vaults
+Exec=markdown-vault
+Icon=de.hannemann.markdown-vault
+Terminal=false
+Type=Application
+Categories=Utility;TextEditor;Development;
+Keywords=markdown;editor;vault;
+StartupNotify=true
