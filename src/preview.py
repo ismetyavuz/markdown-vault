@@ -12,6 +12,8 @@ import markdown as md
 import re
 from markdown.extensions import Extension
 from markdown.postprocessors import Postprocessor
+from markdown.preprocessors import Preprocessor
+from markdown.treeprocessors import Treeprocessor
 from pygments import highlight
 from pygments.lexers import get_lexer_by_name, guess_lexer
 from pygments.formatters import HtmlFormatter
@@ -51,7 +53,79 @@ HTML_TEMPLATE = """\
 
 EXTENSION_CONFIGS = {
     "markdown.extensions.wikilinks": {"base_url": ""},
+    "pymdownx.superfences": {
+        "css_class": "codehilite",
+    },
 }
+
+
+class LanguageExtractorPreprocessor(Preprocessor):
+    """Extract language from fenced code blocks in markdown source."""
+    
+    FENCE_RE = re.compile(r'^(\s*)(`{3,}|~{3,})\s*(\w+)?')
+    
+    def __init__(self, md):
+        super().__init__(md)
+        self.languages = []
+    
+    def run(self, lines):
+        self.languages = []
+        new_lines = []
+        in_code_block = False
+        fence_chars = None
+        for line in lines:
+            match = self.FENCE_RE.match(line)
+            if match:
+                # Check if this is an opening or closing fence
+                if not in_code_block:
+                    # Opening fence
+                    lang = match.group(3) or 'text'
+                    self.languages.append(lang)
+                    in_code_block = True
+                    fence_chars = match.group(2)[0]  # ` or ~
+                elif line.strip().startswith(fence_chars * 3):
+                    # Closing fence (same char, at least 3)
+                    in_code_block = False
+                    fence_chars = None
+            new_lines.append(line)
+        
+        # Pass languages to the postprocessor
+        if hasattr(self.md, 'lang_postprocessor') and self.md.lang_postprocessor:
+            self.md.lang_postprocessor.set_languages(self.languages)
+        
+        return new_lines
+
+
+class LanguageTreeprocessor(Treeprocessor):
+    """Treeprocessor to add data-lang attribute to codehilite divs based on code element's language class."""
+    
+    def run(self, root):
+        # Find all div elements with class containing "codehilite"
+        for div in root.iter('div'):
+            classes = div.get('class', '').split()
+            if 'codehilite' in classes:
+                print(f'  Found codehilite div: {div.attrib}')
+                # Skip if already has data-lang
+                if 'data-lang' in div.attrib:
+                    continue
+                # Find the code element inside pre/code
+                code_elem = div.find('.//code')
+                lang = None
+                if code_elem is not None:
+                    code_classes = code_elem.get('class', '').split()
+                    for cls in code_classes:
+                        if cls.startswith('language-'):
+                            lang = cls[9:]  # Remove 'language-' prefix
+                            break
+                # Fallback: check div's own classes for language-* prefix
+                if lang is None:
+                    for cls in classes:
+                        if cls.startswith('language-'):
+                            lang = cls[9:]
+                            break
+                if lang:
+                    div.set('data-lang', lang)
+        return root
 
 
 class PygmentsCodePostprocessor(Postprocessor):
@@ -65,6 +139,11 @@ class PygmentsCodePostprocessor(Postprocessor):
     def __init__(self, md):
         super().__init__(md)
         self.formatter = HtmlFormatter(cssclass="codehilite", noclasses=False)
+        self._languages = []
+    
+    def set_languages(self, languages: list[str]) -> None:
+        """Store languages extracted by the preprocessor."""
+        self._languages = languages
     
     def run(self, text):
         def replace_placeholder(match):
@@ -75,41 +154,45 @@ class PygmentsCodePostprocessor(Postprocessor):
             except (IndexError, AttributeError):
                 return match.group(0)
             
-            # Extract language from the stashed HTML
-            lang_match = self.LANG_PATTERN.search(stashed_html)
-            if not lang_match:
-                return match.group(0)
+            # Get language from preprocessor's list (same index as stash)
+            lang = self._languages[index] if index < len(self._languages) else 'text'
             
-            lang = lang_match.group(1)
-            
-            # Extract code content from stashed HTML
-            code_match = re.search(r'<pre><code class="language-\w+">(.*?)</code></pre>', stashed_html, re.DOTALL)
-            if not code_match:
-                return match.group(0)
-            
-            code = code_match.group(1)
-            # Decode HTML entities
-            code = code.replace('<', '<').replace('>', '>').replace('&', '&')
-            
-            try:
-                lexer = get_lexer_by_name(lang, stripall=True)
-            except ValueError:
-                lexer = get_lexer_by_name('text', stripall=True)
-            
-            highlighted = highlight(code, lexer, self.formatter)
-            # Add data-lang attribute to the div
-            highlighted = highlighted.replace('<div class="codehilite">', f'<div class="codehilite" data-lang="{lang}">')
-            
-            return highlighted
+            # The stashed HTML already has Pygments-highlighted code with <div class="codehilite">
+            # Just add data-lang attribute to the codehilite div
+            import re
+            stashed_html = re.sub(r'(<div class="[^"]*codehilite[^"]*)"',
+                                  lambda m: m.group(0) + f' data-lang="{lang}"' if 'data-lang' not in m.group(0) else m.group(0),
+                                  stashed_html)
+            return stashed_html
         
-        # Replace <p>placeholder</p> with highlighted code
+        # Replace <p>placeholder</p> with highlighted code from stash
         return self.PARAGRAPH_PLACEHOLDER.sub(replace_placeholder, text)
+
+
+class LanguageExtension(Extension):
+    """Extension that adds language extraction and data-lang attribute."""
+    
+    def extendMarkdown(self, md):
+        # Preprocessor to extract languages - run BEFORE superfences (priority 30 > 25)
+        lang_preprocessor = LanguageExtractorPreprocessor(md)
+        md.preprocessors.register(lang_preprocessor, 'language_extractor', 30)
+        
+        # Treeprocessor to add data-lang attributes (runs after HTML tree is built)
+        md.treeprocessors.register(LanguageTreeprocessor(md), 'language_data', 10)
+        
+        # Pass languages from preprocessor to treeprocessor
+        md.lang_preprocessor = lang_preprocessor
 
 
 class PygmentsCodeExtension(Extension):
     def extendMarkdown(self, md):
         # Run after all other postprocessors (priority > 0 = later)
-        md.postprocessors.register(PygmentsCodePostprocessor(md), 'pygments_code', 50)
+        postprocessor = PygmentsCodePostprocessor(md)
+        md.postprocessors.register(postprocessor, 'pygments_code', 50)
+        # Store reference so preprocessor can pass languages
+        md.lang_postprocessor = postprocessor
+        # Register language extension
+        LanguageExtension().extendMarkdown(md)
 
 
 MARKDOWN_EXTENSIONS = [
@@ -117,6 +200,18 @@ MARKDOWN_EXTENSIONS = [
     "markdown.extensions.tables",
     "markdown.extensions.toc",
     "markdown.extensions.wikilinks",
+    "pymdownx.tilde",
+    "pymdownx.mark",
+    "pymdownx.caret",
+    "pymdownx.tasklist",
+    "pymdownx.superfences",
+    "pymdownx.magiclink",
+    "pymdownx.keys",
+    "pymdownx.smartsymbols",
+    "pymdownx.emoji",
+    "pymdownx.arithmatex",
+    "pymdownx.tasklist",
+    "pymdownx.superfences",
     PygmentsCodeExtension(),
 ]
 

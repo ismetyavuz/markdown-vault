@@ -13,6 +13,7 @@ A GNOME desktop application for editing and previewing Markdown files organized 
 - **Full-text search** — bottom bar across all vaults (Ctrl+F)
 - **Tags & backlinks** — wikilink-style `[[page]]` navigation
 - **Customizable keybindings** — GNOME defaults, optional vim/emacs modes
+- **Rich Markdown (pymdown-extensions)** — strikethrough `~~text~~`, highlight `==text==`, superscript `^sup^`, subscript `~sub~`, task lists `- [ ]`/`- [x]`, superfences (tabs, line numbers, highlight lines), magic links (auto URLs, @mentions, #issues), keyboard keys `++ctrl+c++`, smart symbols (quotes, dashes, ellipsis), emoji shortcodes `:smile:`, math formulas `$...$`, task lists with checkboxes
 
 ## Requirements
 
