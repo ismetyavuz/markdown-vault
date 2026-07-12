@@ -118,9 +118,6 @@ tail -5 tmp/mv-stderr.log
 
 **WICHTIG:** Vor jedem Test **immer** `./scripts/test-app.sh` nutzen — nie manuell `pkill` + `setsid` mixen. Verhindert verwaiste Prozesse, garantiert sauberen Neustart, Exit-Code für CI nutzbar.
 
-
-## Dev commands
-
 **Start-Prozedur (immer befolgen):**
 1. `pkill -f "python3 -m src.main" 2>/dev/null; sleep 1`  — existierende Instanzen killen (NUR unser Prozess!)
 2. `pgrep -f "src.main" && echo "LÄUFT NOCH!" || echo "FREI"`  — prüfen
@@ -141,12 +138,6 @@ disown
 # all existing instances first to avoid duplicate windows:
 # pkill -f "python3 -m src.main" || true
 # (NICHT killall python3 — das killt auch firewalld & andere System-Python-Prozesse!)
-
-# Run detached for manual testing (survives bash tool timeout)
-setsid python3 -m src.main >tmp/mv-stdout.log 2>tmp/mv-stderr.log &
-disown
-# Check logs: tail -f tmp/mv-stderr.log
-# Kill later: pkill -f "src.main"
 
 # Install dependencies (openSUSE Tumbleweed)
 sudo zypper install python3-gobject python3-gobject-Gdk gtk4-devel gtk4-tools \
