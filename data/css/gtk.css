@@ -17,8 +17,8 @@
 
 .mru-switcher {
     min-width: 300px;
-    background: var(--card_bg_color);
-    border: 1px solid var(--borders_color);
+    background: @card_bg_color;
+    border: 1px solid @borders_color;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }

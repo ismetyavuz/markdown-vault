@@ -60,6 +60,37 @@ class TestMRUManager(unittest.TestCase):
         tabs.append("/x.md")
         self.assertEqual(self.mru.tabs, [self._path(0)])
 
+    # ── remove ──────────────────────────────────────────────────────
+
+    def test_remove_existing(self):
+        self.mru.push(self._path(0))
+        self.mru.push(self._path(1))
+        self.mru.remove(self._path(0))
+        self.assertEqual(self.mru.tabs, [self._path(1)])
+
+    def test_remove_nonexistent_is_noop(self):
+        self.mru.push(self._path(0))
+        self.mru.remove("/nonexistent.md")
+        self.assertEqual(self.mru.tabs, [self._path(0)])
+
+    def test_remove_adjusts_position(self):
+        self.mru.push(self._path(0))
+        self.mru.push(self._path(1))
+        self.mru.push(self._path(2))
+        # MRU = [c, b, a], pos=0
+        self.mru.next()  # pos=1 (b)
+        self.mru.remove(self._path(1))
+        # MRU = [c, a], pos was 1, now clamped to 1 (len=2, max=1)
+        self.assertEqual(self.mru.tabs, [self._path(2), self._path(0)])
+        self.assertEqual(self.mru.pos, 1)
+
+    def test_remove_clamps_pos_to_zero(self):
+        self.mru.push(self._path(0))
+        self.mru.push(self._path(1))
+        # pos=0, remove MRU[0] → pos clamped to 0
+        self.mru.remove(self._path(1))
+        self.assertEqual(self.mru.pos, 0)
+
     # ── next / prev ────────────────────────────────────────────────
 
     def test_next_returns_none_when_empty(self):
@@ -77,12 +108,12 @@ class TestMRUManager(unittest.TestCase):
         self.assertEqual(result, self._path(1))
         self.assertEqual(self.mru.pos, 1)
 
-    def test_next_clamps_at_end(self):
+    def test_next_returns_none_at_end(self):
         self.mru.push(self._path(0))
         self.mru.push(self._path(1))
         self.mru.next()  # pos=1
-        result = self.mru.next()  # already at end
-        self.assertEqual(result, self._path(0))
+        result = self.mru.next()  # already at end → None
+        self.assertIsNone(result)
         self.assertEqual(self.mru.pos, 1)
 
     def test_prev_returns_none_at_start(self):
@@ -99,32 +130,61 @@ class TestMRUManager(unittest.TestCase):
         self.assertEqual(result, self._path(2))
         self.assertEqual(self.mru.pos, 0)
 
-    def test_next_returns_none_for_missing_file(self):
-        self.mru.push("/nonexistent_file_xyz.md")
+    def test_next_skips_missing_files(self):
         self.mru.push(self._path(0))
-        # MRU = [a.md, nonexistent], pos=0, next tries pos=1 = missing → None
+        self.mru.push("/nonexistent_xyz.md")
+        self.mru.push(self._path(2))
+        # MRU = [c, nonexistent, a], pos=0
         result = self.mru.next()
+        # Should skip nonexistent at pos=1, land on a at pos=2
+        self.assertEqual(result, self._path(0))
+        self.assertEqual(self.mru.pos, 2)
+
+    def test_prev_skips_missing_files(self):
+        self.mru.push(self._path(2))
+        self.mru.push("/nonexistent_xyz.md")
+        self.mru.push(self._path(0))
+        # MRU = [a, nonexistent, c], pos=0
+        self.mru.next()  # pos=1 = nonexistent → skipped → pos=2 (c)
+        # Now MRU = [a, nonexistent, c], pos=2
+        result = self.mru.prev()
+        # Should skip nonexistent at pos=1, land on a at pos=0
+        self.assertEqual(result, self._path(0))
+        self.assertEqual(self.mru.pos, 0)
+
+    def test_next_all_missing_returns_none(self):
+        self.mru.push("/nonexistent1.md")
+        self.mru.push("/nonexistent2.md")
+        # Both files missing, next should return None
+        self.assertIsNone(self.mru.next())
+
+    def test_prev_all_missing_returns_none(self):
+        self.mru.push("/nonexistent1.md")
+        self.mru.push("/nonexistent2.md")
+        self.mru.next()  # tries to go forward, all missing
+        self.mru._mru_pos = 1  # force position
+        result = self.mru.prev()
         self.assertIsNone(result)
 
-    # ── list_for_switcher ──────────────────────────────────────────
+    # ── tabs property ──────────────────────────────────────────────
 
-    def test_list_for_switcher_returns_copy(self):
+    def test_tabs_returns_copy(self):
         self.mru.push(self._path(0))
         self.mru.push(self._path(1))
-        result = self.mru.list_for_switcher()
+        result = self.mru.tabs
         result.append("/x.md")
         self.assertEqual(self.mru.tabs, [self._path(1), self._path(0)])
 
-    def test_list_for_switcher_order(self):
+    def test_tabs_order(self):
         self.mru.push(self._path(0))
         self.mru.push(self._path(1))
         self.mru.push(self._path(2))
-        self.assertEqual(self.mru.list_for_switcher(), [
+        self.assertEqual(self.mru.tabs, [
             self._path(2), self._path(1), self._path(0),
         ])
 
-    def test_list_for_switcher_empty(self):
-        self.assertEqual(self.mru.list_for_switcher(), [])
+    def test_tabs_empty(self):
+        self.assertEqual(self.mru.tabs, [])
 
 
 class TestMRUSwitcherStructure(unittest.TestCase):
@@ -140,6 +200,9 @@ class TestMRUSwitcherStructure(unittest.TestCase):
 
     def test_has_is_open_classmethod(self):
         self.assertIn("def is_open(cls)", self._source())
+
+    def test_has_cycle_existing_classmethod(self):
+        self.assertIn("def cycle_existing(cls", self._source())
 
     def test_has_instance_class_attribute(self):
         self.assertIn("_instance", self._source())
@@ -167,6 +230,20 @@ class TestMRUSwitcherStructure(unittest.TestCase):
         self.assertIn("KEY_Control_L", src)
         self.assertIn("KEY_Control_R", src)
 
+    def test_uses_open_file_callback(self):
+        self.assertIn("self._open_file(target)", self._source())
+
+    def test_no_initial_direction_param(self):
+        src = self._source()
+        # Verify __init__ does not accept initial_direction
+        self.assertNotIn("initial_direction", src)
+
+    def test_no_set_hide_on_close(self):
+        self.assertNotIn("set_hide_on_close", self._source())
+
+    def test_destroys_on_close(self):
+        self.assertIn("self.destroy()", self._source())
+
 
 class TestMRUManagerSingleton(unittest.TestCase):
     """Test MRUSwitcher._instance class-level singleton tracking."""
@@ -184,6 +261,21 @@ class TestMRUManagerSingleton(unittest.TestCase):
     def test_is_open_true_when_set(self):
         MRUSwitcher._instance = "fake"
         self.assertTrue(MRUSwitcher.is_open())
+
+    def test_cycle_existing_noop_when_closed(self):
+        MRUSwitcher._instance = None
+        MRUSwitcher.cycle_existing(+1)  # should not raise
+
+    def test_cycle_existing_calls_accelerator(self):
+        class FakeSwitcher:
+            def __init__(self):
+                self.last_dir = None
+            def cycle_from_accelerator(self, direction):
+                self.last_dir = direction
+        fake = FakeSwitcher()
+        MRUSwitcher._instance = fake
+        MRUSwitcher.cycle_existing(-1)
+        self.assertEqual(fake.last_dir, -1)
 
 
 if __name__ == "__main__":

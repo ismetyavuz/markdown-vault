@@ -5,7 +5,10 @@ Provides:
 - ``MRUSwitcher`` — modal popup widget for switching between MRU tabs.
 """
 
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING, Callable
 
 import gi
 
@@ -13,6 +16,9 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
 from gi.repository import Gtk, Adw, Gdk
+
+if TYPE_CHECKING:
+    pass
 
 
 class MRUManager:
@@ -42,34 +48,46 @@ class MRUManager:
         self._mru_tabs.insert(0, file_path)
         self._mru_pos = 0
 
+    def remove(self, file_path: str) -> None:
+        """Remove *file_path* from the MRU list (e.g. when a tab is closed)."""
+        if file_path in self._mru_tabs:
+            self._mru_tabs.remove(file_path)
+            if self._mru_pos >= len(self._mru_tabs):
+                self._mru_pos = max(0, len(self._mru_tabs) - 1)
+
     def next(self) -> str | None:
-        """Return the next MRU tab path, or None if at the end or too few tabs."""
+        """Return the next MRU tab path, skipping missing files.
+
+        Returns ``None`` if no navigable tab exists.
+        """
         if len(self._mru_tabs) < 2:
             return None
-        new_pos = min(self._mru_pos + 1, len(self._mru_tabs) - 1)
-        target = self._mru_tabs[new_pos]
-        if not Path(target).exists():
-            return None
-        self._mru_pos = new_pos
-        return target
+        new_pos = self._mru_pos
+        for _ in range(len(self._mru_tabs) - 1):
+            new_pos = min(new_pos + 1, len(self._mru_tabs) - 1)
+            if new_pos == self._mru_pos:
+                break
+            if Path(self._mru_tabs[new_pos]).exists():
+                self._mru_pos = new_pos
+                return self._mru_tabs[new_pos]
+        return None
 
     def prev(self) -> str | None:
-        """Return the previous MRU tab path, or None if at the start or too few tabs."""
-        if self._mru_pos <= 0:
-            return None
-        new_pos = self._mru_pos - 1
-        target = self._mru_tabs[new_pos]
-        if not Path(target).exists():
-            return None
-        self._mru_pos = new_pos
-        return target
+        """Return the previous MRU tab path, skipping missing files.
 
-    def list_for_switcher(self) -> list[str]:
-        """Return the MRU list for display in the switcher popup.
-
-        Returns a copy of the list so the popup cannot mutate the manager.
+        Returns ``None`` if no navigable tab exists.
         """
-        return self._mru_tabs[:]
+        if len(self._mru_tabs) < 2:
+            return None
+        new_pos = self._mru_pos
+        for _ in range(len(self._mru_tabs) - 1):
+            new_pos = max(new_pos - 1, 0)
+            if new_pos == self._mru_pos:
+                break
+            if Path(self._mru_tabs[new_pos]).exists():
+                self._mru_pos = new_pos
+                return self._mru_tabs[new_pos]
+        return None
 
 
 class MRUSwitcher(Gtk.Window):
@@ -79,15 +97,25 @@ class MRUSwitcher(Gtk.Window):
     opens; releasing Ctrl commits the selection and closes the dialog.
     """
 
-    _instance: "MRUSwitcher | None" = None
+    _instance: MRUSwitcher | None = None
 
     @classmethod
     def is_open(cls) -> bool:
         """Return True if a switcher dialog is currently shown."""
         return cls._instance is not None
 
-    def __init__(self, parent: Gtk.Window, mru_tabs: list[str],
-                 tab_bar, initial_direction: int = 0) -> None:
+    @classmethod
+    def cycle_existing(cls, direction: int) -> None:
+        """Cycle the currently open switcher, if any."""
+        if cls._instance is not None:
+            cls._instance.cycle_from_accelerator(direction)
+
+    def __init__(
+        self,
+        parent: Gtk.Window,
+        mru_tabs: list[str],
+        open_file: Callable[[str], None],
+    ) -> None:
         super().__init__(
             transient_for=parent,
             modal=True,
@@ -95,9 +123,8 @@ class MRUSwitcher(Gtk.Window):
         MRUSwitcher._instance = self
 
         self.set_decorated(False)
-        self.set_hide_on_close(True)
         self._mru_tabs = mru_tabs[:]
-        self._tab_bar = tab_bar
+        self._open_file = open_file
         # MRU[0] = current tab, MRU[1] = previous tab. Start at MRU[1].
         self._selected_idx = 1 if len(mru_tabs) > 1 else 0
         self._accel_handled = False
@@ -196,7 +223,7 @@ class MRUSwitcher(Gtk.Window):
         """Activate the selected tab and close the switcher."""
         if self._mru_tabs:
             target = self._mru_tabs[self._selected_idx]
-            self._tab_bar.set_active_tab(target)
+            self._open_file(target)
         self.close()
 
     def _cancel(self) -> None:
@@ -204,7 +231,7 @@ class MRUSwitcher(Gtk.Window):
         self.close()
 
     def _on_close_request(self, *_args) -> bool:
-        """Reset the singleton instance and hide."""
+        """Reset the singleton instance and destroy."""
         MRUSwitcher._instance = None
-        self.hide()
-        return True  # Prevent default destroy; we just hide.
+        self.destroy()
+        return True

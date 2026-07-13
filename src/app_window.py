@@ -157,6 +157,13 @@ class MainWindow(Adw.ApplicationWindow):
         if active and active in self._tab_bar.get_all_paths():
             self._tab_bar.set_active_tab(active)
             self._push_history(active)
+        # Rebuild MRU from session tab order (last in list = most recent).
+        for tab_data in reversed(_ses.get("tabs", [])):
+            fp = tab_data.get("path", "")
+            if fp and fp in self._tab_bar.get_all_paths():
+                self.mru.push(fp)
+        if active and active in self._tab_bar.get_all_paths():
+            self.mru.push(active)
         # Defer expansion so the tree view is fully mapped first.
         expanded = _ses.get("expanded_vaults", [])
         if expanded:
@@ -567,6 +574,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.mru.push(file_path)
 
     def _on_tab_closed(self, _tab_bar, file_path: str) -> None:
+        self.mru.remove(file_path)
         child = self._content_stack.get_child_by_name(file_path)
         if child:
             self._content_stack.remove(child)
@@ -662,12 +670,13 @@ class MainWindow(Adw.ApplicationWindow):
             direction: +1 for Ctrl+Tab (next MRU), -1 for Ctrl+Shift+Tab (prev MRU)
         """
         if mru.MRUSwitcher.is_open():
-            mru.MRUSwitcher._instance.cycle_from_accelerator(direction)
+            mru.MRUSwitcher.cycle_existing(direction)
             return
-        mru_tabs = self.mru.list_for_switcher()
+        mru_tabs = self.mru.tabs
         if len(mru_tabs) < 2:
             return
-        mru.MRUSwitcher(self, mru_tabs, self._tab_bar, direction)
+        mru.MRUSwitcher(self, mru_tabs, self._open_file)
+
     def _cycle_tab(self, direction: int) -> None:
         paths = self._tab_bar.get_all_paths()
         if len(paths) < 2:
