@@ -114,6 +114,14 @@ class VaultTree(Gtk.Box):
         """Return the list of currently loaded vault root paths."""
         return list(self._vault_paths)
 
+    def get_selected_path(self) -> str | None:
+        """Return the path of the currently selected row, or ``None``."""
+        sel = self._tree_view.get_selection()
+        model, iter_ = sel.get_selected()
+        if iter_ is None:
+            return None
+        return self._store.get_value(iter_, _COL_PATH)
+
     def refresh(self) -> None:
         """Rebuild the tree from the current vault paths."""
         self.set_vaults(self._vault_paths)

@@ -432,6 +432,35 @@ class MainWindow(Adw.ApplicationWindow):
 
     # ── New file ───────────────────────────────────────────────────
 
+    def _resolve_active_vault(self) -> str:
+        """Determine the vault root for a new file.
+
+        Priority: open tab's file → vault tree selection → fallback to last vault.
+        """
+        vaults = self._vault_tree.get_vault_paths()
+
+        # 1. Derive from the currently open tab's file path.
+        tab = self._tab_bar.get_current_tab()
+        if tab and tab.editor.file_path:
+            file_parent = str(Path(tab.editor.file_path).parent)
+            for v in vaults:
+                if file_parent == v or file_parent.startswith(v + os.sep):
+                    return v
+
+        # 2. Derive from vault tree selection.
+        selected = self._vault_tree.get_selected_path()
+        if selected:
+            for v in vaults:
+                if selected == v or selected.startswith(v + os.sep):
+                    return v
+
+        # 3. Fallback to stored active vault if valid.
+        if self._active_vault and self._active_vault in vaults:
+            return self._active_vault
+
+        # 4. Last resort: most recently added vault.
+        return vaults[-1]
+
     def _on_new_file(self) -> None:
         """Prompt for a filename and create it in the active vault."""
         vaults = self._vault_tree.get_vault_paths()
@@ -444,10 +473,7 @@ class MainWindow(Adw.ApplicationWindow):
             dialog.present(self)
             return
 
-        # Use the active vault, or fall back to the most recently added.
-        default_dir = self._active_vault
-        if not default_dir or default_dir not in vaults:
-            default_dir = vaults[-1]
+        default_dir = self._resolve_active_vault()
 
         dialog = Adw.AlertDialog(heading="New File", body="File name:")
         dialog.add_response("cancel", "Cancel")
@@ -572,6 +598,13 @@ class MainWindow(Adw.ApplicationWindow):
         self._sidebar.update_for_file(file_path, tab.editor.get_text())
         self._push_history(file_path)
         self.mru.push(file_path)
+        # Keep active vault in sync with the open tab.
+        vaults = self._vault_tree.get_vault_paths()
+        file_parent = str(Path(file_path).parent)
+        for v in vaults:
+            if file_parent == v or file_parent.startswith(v + os.sep):
+                self._active_vault = v
+                break
 
     def _on_tab_closed(self, _tab_bar, file_path: str) -> None:
         self.mru.remove(file_path)
