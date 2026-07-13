@@ -22,6 +22,8 @@ A GNOME desktop application for editing and previewing Markdown files organized 
 - libadwaita 1
 - WebKitGTK 6.0
 - GtkSourceView 5
+- pymdown-extensions (for rich Markdown features)
+- Pygments (for code highlighting)
 
 ### Install dependencies
 
@@ -40,6 +42,8 @@ sudo zypper install \
   gobject-introspection-devel \
   python3-PyYAML \
   python3-markdown \
+  python313-pymdown-extensions \
+  python313-Pygments \
   meson \
   gcc
 ```
@@ -54,10 +58,12 @@ sudo dnf install \
   gtk4-devel \
   libadwaita-devel \
   gtksourceview5-devel \
-  webkit2gtk6.0-devel \
+  webkitgtk6.0-devel \
   gobject-introspection-devel \
   python3-markdown \
   python3-pyyaml \
+  python3-pymdown-extensions \
+  python3-pygments \
   meson \
   gcc
 ```
@@ -78,6 +84,8 @@ sudo apt install \
   libgirepository1.0-dev \
   python3-markdown \
   python3-yaml \
+  python3-pymdownx \
+  python3-pygments \
   meson \
   gcc
 ```
@@ -95,7 +103,9 @@ sudo pacman -S \
   webkitgtk-6.0 \
   gtksourceview5 \
   python-markdown \
-  python-pyyaml \
+  python-yaml \
+  python-pymdown-extensions \
+  python-pygments \
   gobject-introspection \
   meson \
   gcc

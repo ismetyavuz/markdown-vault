@@ -180,6 +180,17 @@ python3 -m unittest discover -s tests -v
 - Git features must gracefully handle repos without git initialized.
 - Images in Markdown: support `![alt](path)` with both relative and absolute paths.
 
+## MRU Tab Switcher (Ctrl+Tab / Ctrl+Shift+Tab)
+
+- **Single instance**: Only one `MRUSwitcher` dialog may be open at a time. Subsequent Ctrl+Tab while open is ignored.
+- **Exclusive during open**: While the switcher is shown, no other actions (editor typing, sidebar toggling, etc.) are possible — only Tab/Ctrl+Tab navigation and Escape to close.
+- **Alt+Tab behaviour**: Starts at MRU[1] (the previously active tab; MRU[0] is always the current tab), cycles forward with Tab, backward with Ctrl+Shift+Tab. Ctrl+release commits the selection and closes the dialog.
+- **MRU list**: Maintained by `MRUManager` in `src/mru.py`; rebuilt on every tab change (`_on_tab_changed` → `mru.push()`).
+- **Files**: `MRUManager` (business logic) and `MRUSwitcher` (UI only) live in `src/mru.py`. `MainWindow` delegates: `_mru_next`/`_mru_prev` call `mru.next()`/`mru.prev()`, `_show_mru_switcher` instantiates `MRUSwitcher` with `mru.list_for_switcher()`.
+- **No persistence**: The MRU list is in-memory only; it is rebuilt from session tab order on startup.
+- **Double-cycle prevention**: Application accelerators (`app.set_accels_for_action`) AND the switcher's key controller both handle Ctrl+Tab. `cycle_from_accelerator()` sets `_accel_handled` flag so the key controller skips the event. If only the key controller fires (no accelerator), it cycles normally.
+- **No ShortcutController in MRU mode**: `_update_tab_shortcuts()` skips registering shortcuts when `tab_switch_mode == "mru"` to avoid conflicts with application accelerators.
+
 ## Gotchas
 
 - WebKitGTK requires the main thread for JS evaluation — use `GLib.idle_add()` for WebView calls.
@@ -189,6 +200,7 @@ python3 -m unittest discover -s tests -v
 - GtkSourceView 5 renamed `begin_not_undoable_action` → `begin_irreversible_action`.
 - `editor.file_path` is a `str`, not `Path` — use `Path(editor.file_path).parent` for directory.
 - Kill all existing app instances before starting a new one (`pkill -f "python3 -m src.main" || true`). Duplicate instances cause confusing state.
+- Shift+Tab generates `Gdk.KEY_ISO_Left_Tab`, not `Gdk.KEY_Tab`. Always check for both keyvals.
 
 ## Future Features
 

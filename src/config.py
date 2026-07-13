@@ -91,6 +91,9 @@ _DEFAULT_SETTINGS = {
     "editor_tab_width": 4,
     "editor_wrap_text": True,
     "preview_zoom": 1.0,
+    "keybinding_next_tab": "<Control>Tab",
+    "keybinding_prev_tab": "<Shift><Control>Tab",
+    "tab_switch_mode": "mru",
 }
 
 

@@ -71,6 +71,7 @@ class TabBar(Gtk.Box):
         If *file_path* is already open, the existing tab is selected
         and no new ``Editor``/``Preview`` pair is created.
         """
+        print(f"DEBUG TabBar.add_tab: file_path={file_path}, existing={file_path in self._tabs}")
         if file_path in self._tabs:
             self.set_active_tab(file_path)
             return self._tabs[file_path]

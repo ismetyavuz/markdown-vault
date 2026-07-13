@@ -9,6 +9,7 @@ Dark mode is controlled via ``Adw.StyleManager`` and exposed through
 the hamburger menu.
 """
 
+import logging
 import os
 from pathlib import Path
 
@@ -28,6 +29,20 @@ from .search import SearchBar
 from .preferences import PreferencesDialog
 from . import config
 from . import session
+from . import mru
+
+
+def _load_gtk_css() -> None:
+    """Load GTK CSS for tab bar and other widgets."""
+    css_provider = Gtk.CssProvider()
+    css_path = Path(__file__).parent.parent / "data" / "css" / "gtk.css"
+    if css_path.exists():
+        css_provider.load_from_path(str(css_path))
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(),
+            css_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+        )
 
 
 def _apply_theme(color_scheme: int) -> None:
@@ -53,12 +68,22 @@ class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app: Adw.Application) -> None:
         super().__init__(application=app, title="Markdown Vault")
 
+        _load_gtk_css()
+
         self._view_mode: str = "edit"
         self._setup_complete = False
         self._autosave_id: int | None = None
         self._view_toggle_buttons: dict[str, Gtk.ToggleButton] = {}
         self._active_vault: str | None = None
         self._settings = config.load_settings()
+
+        # MRU tab manager.
+        self.mru = mru.MRUManager()
+
+        # Navigation history (browser-style back/forward).
+        self._nav_history: list[str] = []
+        self._nav_pos: int = -1
+        self._suppress_history: bool = False
 
         # Load session for window geometry.
         _ses = session.load_session()
@@ -116,6 +141,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Restore session: sidebar, tabs, active tab, expanded vaults.
         self._sidebar.set_visible(_ses.get("sidebar_visible", False))
+        self._suppress_history = True
         for tab_data in _ses.get("tabs", []):
             fp = tab_data.get("path", "")
             if fp and Path(fp).exists():
@@ -126,9 +152,11 @@ class MainWindow(Adw.ApplicationWindow):
                     editor_zoom=tab_data.get("editor_zoom", 1.0),
                     preview_zoom=tab_data.get("preview_zoom", 1.0),
                 )
+        self._suppress_history = False
         active = _ses.get("active_tab")
         if active and active in self._tab_bar.get_all_paths():
             self._tab_bar.set_active_tab(active)
+            self._push_history(active)
         # Defer expansion so the tree view is fully mapped first.
         expanded = _ses.get("expanded_vaults", [])
         if expanded:
@@ -159,6 +187,40 @@ class MainWindow(Adw.ApplicationWindow):
         self._motion_ctrl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         self._motion_ctrl.connect("motion", self._on_motion)
         self._content_stack.add_controller(self._motion_ctrl)
+
+        # Add global shortcut controller for dynamic tab switching shortcuts.
+        self._tab_shortcut_ctrl = Gtk.ShortcutController.new()
+        self._tab_shortcut_ctrl.set_scope(Gtk.ShortcutScope.GLOBAL)
+        self._tab_shortcuts: list[Gtk.Shortcut] = []
+        self.add_controller(self._tab_shortcut_ctrl)
+        self._update_tab_shortcuts()
+
+    def _update_tab_shortcuts(self) -> None:
+        """Update dynamic tab switching shortcuts in the global shortcut controller."""
+        if not hasattr(self, "_tab_shortcut_ctrl"):
+            return
+        for shortcut in self._tab_shortcuts:
+            self._tab_shortcut_ctrl.remove_shortcut(shortcut)
+        self._tab_shortcuts = []
+
+        is_mru = self._settings.get("tab_switch_mode", "mru") == "mru"
+        if is_mru:
+            return  # MRU mode uses application accelerators only
+
+        next_accel = self._settings.get("keybinding_next_tab", "<Control>Tab")
+        prev_accel = self._settings.get("keybinding_prev_tab", "<Shift><Control>Tab")
+        if next_accel:
+            trigger = Gtk.ShortcutTrigger.parse_string(next_accel)
+            action = Gtk.NamedAction.new("win.next-tab")
+            shortcut = Gtk.Shortcut.new(trigger, action)
+            self._tab_shortcut_ctrl.add_shortcut(shortcut)
+            self._tab_shortcuts.append(shortcut)
+        if prev_accel:
+            trigger = Gtk.ShortcutTrigger.parse_string(prev_accel)
+            action = Gtk.NamedAction.new("win.prev-tab")
+            shortcut = Gtk.Shortcut.new(trigger, action)
+            self._tab_shortcut_ctrl.add_shortcut(shortcut)
+            self._tab_shortcuts.append(shortcut)
 
     # ── Welcome view ───────────────────────────────────────────────
 
@@ -220,6 +282,19 @@ class MainWindow(Adw.ApplicationWindow):
         save_btn.set_tooltip_text("Save (Ctrl+S)")
         save_btn.connect("clicked", lambda *_: self._save_current())
         header.pack_start(save_btn)
+
+        # Navigation history buttons.
+        self._back_btn = Gtk.Button(icon_name="go-previous-symbolic")
+        self._back_btn.set_tooltip_text("Back (Alt+Left)")
+        self._back_btn.set_sensitive(False)
+        self._back_btn.connect("clicked", lambda *_: self._nav_back())
+        header.pack_start(self._back_btn)
+
+        self._forward_btn = Gtk.Button(icon_name="go-next-symbolic")
+        self._forward_btn.set_tooltip_text("Forward (Alt+Right)")
+        self._forward_btn.set_sensitive(False)
+        self._forward_btn.connect("clicked", lambda *_: self._nav_forward())
+        header.pack_start(self._forward_btn)
 
         # View-mode toggle buttons (center).
         view_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
@@ -322,6 +397,32 @@ class MainWindow(Adw.ApplicationWindow):
         action.connect("activate", lambda *_: self._zoom_reset())
         self.add_action(action)
 
+        action = Gio.SimpleAction.new("nav-back", None)
+        action.connect("activate", lambda *_: self._nav_back())
+        self.add_action(action)
+
+        action = Gio.SimpleAction.new("nav-forward", None)
+        action.connect("activate", lambda *_: self._nav_forward())
+        self.add_action(action)
+
+        action = Gio.SimpleAction.new("next-tab", None)
+        action.connect("activate", lambda *_: self._next_tab())
+        self.add_action(action)
+
+        action = Gio.SimpleAction.new("prev-tab", None)
+        action.connect("activate", lambda *_: self._prev_tab())
+        self.add_action(action)
+
+        action = Gio.SimpleAction.new("mru-switcher-next", None)
+        action.connect("activate", lambda *_: self._show_mru_switcher(+1))
+        self.add_action(action)
+
+        action = Gio.SimpleAction.new("mru-switcher-prev", None)
+        action.connect("activate", lambda *_: self._show_mru_switcher(-1))
+        self.add_action(action)
+
+        self._apply_keybindings()
+
     # ── New file ───────────────────────────────────────────────────
 
     def _on_new_file(self) -> None:
@@ -386,16 +487,30 @@ class MainWindow(Adw.ApplicationWindow):
         self,
         file_path: str,
         *,
-        view_mode: str = "edit",
+        view_mode: str | None = None,
         split_position: int = 600,
         editor_zoom: float = 1.0,
         preview_zoom: float = 1.0,
+        _from_nav: bool = False,
     ) -> None:
-        """Open *file_path* in a new or existing tab."""
+        """Open *file_path* in a new or existing tab.
+
+        When *view_mode* is ``None`` the current tab's view mode is
+        inherited (or ``"edit"`` when no tab exists yet).  Session restore
+        passes an explicit mode so it stays independent.  *_from_nav* is
+        ``True`` for programmatic back/forward navigation and suppresses
+        history pushes.
+        """
         for path in self._tab_bar.get_all_paths():
             if path == file_path:
                 self._tab_bar.set_active_tab(file_path)
+                if not _from_nav:
+                    self._push_history(file_path)
                 return
+
+        if view_mode is None:
+            cur = self._tab_bar.get_current_tab()
+            view_mode = cur.view_mode if cur else "edit"
 
         editor = Editor(
             base_font_size=self._settings.get("editor_font_size", 14),
@@ -430,6 +545,8 @@ class MainWindow(Adw.ApplicationWindow):
         self._apply_view_mode()
         self._refresh_preview()
         self._sidebar.update_for_file(file_path, editor.get_text())
+        if not _from_nav:
+            self._push_history(file_path)
 
     # ── Tab callbacks ──────────────────────────────────────────────
 
@@ -446,6 +563,8 @@ class MainWindow(Adw.ApplicationWindow):
         self._apply_view_mode()
         self._refresh_preview()
         self._sidebar.update_for_file(file_path, tab.editor.get_text())
+        self._push_history(file_path)
+        self.mru.push(file_path)
 
     def _on_tab_closed(self, _tab_bar, file_path: str) -> None:
         child = self._content_stack.get_child_by_name(file_path)
@@ -463,6 +582,130 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_preview_link_clicked(self, _preview, file_path: str) -> None:
         self._open_file(file_path)
+
+    # ── Navigation history ─────────────────────────────────────────
+
+    def _push_history(self, file_path: str) -> None:
+        """Append *file_path* to the navigation history.
+
+        Consecutive duplicates are collapsed and any forward history is
+        discarded, matching standard browser behaviour.
+        """
+        if self._suppress_history:
+            return
+        # Don't push if we're already at this position.
+        if (self._nav_pos >= 0
+                and self._nav_history[self._nav_pos] == file_path):
+            return
+        # Truncate forward history.
+        self._nav_history = self._nav_history[: self._nav_pos + 1]
+        self._nav_history.append(file_path)
+        self._nav_pos = len(self._nav_history) - 1
+        self._update_nav_buttons()
+
+    def _nav_back(self) -> None:
+        """Navigate to the previous entry in history, skipping missing files."""
+        while self._nav_pos > 0:
+            self._nav_pos -= 1
+            file_path = self._nav_history[self._nav_pos]
+            if Path(file_path).exists():
+                self._open_file(file_path, _from_nav=True)
+                self._update_nav_buttons()
+                return
+        self._update_nav_buttons()
+
+    def _nav_forward(self) -> None:
+        """Navigate to the next entry in history, skipping missing files."""
+        while self._nav_pos < len(self._nav_history) - 1:
+            self._nav_pos += 1
+            file_path = self._nav_history[self._nav_pos]
+            if Path(file_path).exists():
+                self._open_file(file_path, _from_nav=True)
+                self._update_nav_buttons()
+                return
+        self._update_nav_buttons()
+
+    def _update_nav_buttons(self) -> None:
+        self._back_btn.set_sensitive(self._nav_pos > 0)
+        self._forward_btn.set_sensitive(
+            self._nav_pos < len(self._nav_history) - 1,
+        )
+
+    def _next_tab(self) -> None:
+        if self._settings.get("tab_switch_mode", "mru") == "mru":
+            self._mru_next()
+        else:
+            self._cycle_tab(+1)
+
+    def _prev_tab(self) -> None:
+        if self._settings.get("tab_switch_mode", "mru") == "mru":
+            self._mru_prev()
+        else:
+            self._cycle_tab(-1)
+
+    def _mru_next(self) -> None:
+        """Ctrl+Tab: switch to the previously active tab (Alt+Tab style)."""
+        target = self.mru.next()
+        if target:
+            self._open_file(target, _from_nav=True)
+
+    def _mru_prev(self) -> None:
+        """Ctrl+Shift+Tab: switch forward in MRU list."""
+        target = self.mru.prev()
+        if target:
+            self._open_file(target, _from_nav=True)
+
+    def _show_mru_switcher(self, direction: int) -> None:
+        """Show the MRU tab switcher (triggered by Ctrl+Tab / Ctrl+Shift+Tab).
+
+        Args:
+            direction: +1 for Ctrl+Tab (next MRU), -1 for Ctrl+Shift+Tab (prev MRU)
+        """
+        if mru.MRUSwitcher.is_open():
+            mru.MRUSwitcher._instance.cycle_from_accelerator(direction)
+            return
+        mru_tabs = self.mru.list_for_switcher()
+        if len(mru_tabs) < 2:
+            return
+        mru.MRUSwitcher(self, mru_tabs, self._tab_bar, direction)
+    def _cycle_tab(self, direction: int) -> None:
+        paths = self._tab_bar.get_all_paths()
+        if len(paths) < 2:
+            return
+        current = self._tab_bar.get_current_path()
+        try:
+            idx = paths.index(current)
+        except ValueError:
+            return
+        self._tab_bar.set_active_tab(paths[(idx + direction) % len(paths)])
+
+    def _apply_keybindings(self) -> None:
+        app = self.get_application()
+        if not app:
+            return
+        app.set_accels_for_action("win.nav-back", ["<Alt>Left"])
+        app.set_accels_for_action("win.nav-forward", ["<Alt>Right"])
+        is_mru = self._settings.get("tab_switch_mode", "mru") == "mru"
+        if is_mru:
+            next_accel = self._settings.get("keybinding_next_tab", "<Control>Tab")
+            prev_accel = self._settings.get("keybinding_prev_tab", "<Shift><Control>Tab")
+            app.set_accels_for_action("win.mru-switcher-next", [next_accel] if next_accel else [])
+            app.set_accels_for_action("win.mru-switcher-prev", [prev_accel] if prev_accel else [])
+            app.set_accels_for_action("win.next-tab", [])
+            app.set_accels_for_action("win.prev-tab", [])
+        else:
+            for setting_key, cycle_action in (
+                ("keybinding_next_tab", "next-tab"),
+                ("keybinding_prev_tab", "prev-tab"),
+            ):
+                accel = self._settings.get(setting_key, "")
+                if accel:
+                    app.set_accels_for_action(f"win.{cycle_action}", [accel])
+                else:
+                    app.set_accels_for_action(f"win.{cycle_action}", [])
+            app.set_accels_for_action("win.mru-switcher-next", [])
+            app.set_accels_for_action("win.mru-switcher-prev", [])
+        self._update_tab_shortcuts()
 
     # ── View mode ──────────────────────────────────────────────────
 
@@ -619,6 +862,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_preferences_changed(self, _dlg) -> None:
         self._settings = config.load_settings()
+        self._apply_keybindings()
         # Apply to all open editors.
         for path in self._tab_bar.get_all_paths():
             tab = self._tab_bar.get_tab(path)

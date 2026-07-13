@@ -1,0 +1,44 @@
+/* GTK-specific CSS for Markdown Vault */
+
+.tab {
+    padding: 4px 12px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+}
+
+.tab.active {
+    background: color-mix(in srgb, var(--accent_bg_color) 30%, transparent);
+    border-color: var(--accent_color);
+}
+
+.tab:hover {
+    background: color-mix(in srgb, var(--card_bg_color) 70%, transparent);
+}
+
+.mru-switcher {
+    min-width: 300px;
+    background: var(--card_bg_color);
+    border: 1px solid var(--borders_color);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.mru-switcher *:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+.mru-row {
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin: 2px 8px;
+}
+
+.mru-row.selected {
+    background: alpha(@accent_bg_color, 0.15);
+    font-weight: bold;
+}
+
+.mru-row.current {
+    opacity: 0.6;
+}
