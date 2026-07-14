@@ -88,6 +88,12 @@ class Sidebar(Gtk.Box):
         self._refresh_git(file_path)
         self._refresh_details(file_path, text)
 
+    def update_text_only(self, file_path: str | None, text: str = "") -> None:
+        """Refresh only outline and details (cheap, safe for every keystroke)."""
+        self._current_file = file_path
+        self._refresh_outline(text)
+        self._refresh_details(file_path, text)
+
     # ------------------------------------------------------------------
     # Outline
     # ------------------------------------------------------------------

@@ -26,15 +26,17 @@ gi.require_version("WebKit", "6.0")
 from gi.repository import Gtk, Adw, WebKit, GObject, Gdk, GLib
 
 
+import unicodedata
+
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 
 
 def _heading_to_slug(heading: str) -> str:
-    """Convert a heading text to a GitHub-style slug for HTML id attributes."""
-    slug = heading.lower().strip()
-    slug = re.sub(r"[^\w\s-]", "", slug)
-    slug = re.sub(r"[\s]+", "-", slug)
-    return slug
+    """Convert a heading text to a slug matching the toc extension's output."""
+    value = unicodedata.normalize("NFKD", heading)
+    value = re.sub(r"[^\w\s-]", "", value).strip()
+    value = re.sub(r"[-\s]+", "-", value)
+    return value.lower()
 
 
 HTML_TEMPLATE = """\

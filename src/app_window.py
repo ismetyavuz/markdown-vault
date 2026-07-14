@@ -132,13 +132,18 @@ class MainWindow(Adw.ApplicationWindow):
         main_paned.set_end_child(centre)
         main_paned.set_resize_end_child(True)
 
-        outer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-        outer.append(main_paned)
-
         self._sidebar = Sidebar()
         self._sidebar.connect("file-open-requested", self._on_sidebar_file_requested)
         self._sidebar.connect("outline-clicked", self._on_outline_clicked)
-        outer.append(self._sidebar)
+
+        self._sidebar_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+        self._sidebar_paned.set_wide_handle(True)
+        self._sidebar_paned.set_start_child(main_paned)
+        self._sidebar_paned.set_resize_start_child(True)
+        self._sidebar_paned.set_shrink_start_child(False)
+        self._sidebar_paned.set_end_child(self._sidebar)
+        self._sidebar_paned.set_resize_end_child(False)
+        self._sidebar_paned.set_shrink_end_child(True)
 
         self._search_bar = SearchBar(get_vault_paths=self._vault_tree.get_vault_paths)
         self._search_bar.connect("file-selected", self._on_search_result_selected)
@@ -146,7 +151,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         self._search_paned = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL)
         self._search_paned.set_wide_handle(True)
-        self._search_paned.set_start_child(outer)
+        self._search_paned.set_start_child(self._sidebar_paned)
         self._search_paned.set_resize_start_child(True)
         self._search_paned.set_shrink_start_child(False)
         self._search_paned.set_end_child(self._search_bar)
@@ -162,6 +167,9 @@ class MainWindow(Adw.ApplicationWindow):
         sidebar_visible = _ses.get("sidebar_visible", False)
         self._sidebar.set_visible(sidebar_visible)
         self._sidebar_toggle.set_active(sidebar_visible)
+        sidebar_pos = _ses.get("sidebar_paned_position", 0)
+        if sidebar_pos > 0:
+            self._sidebar_paned.set_position(sidebar_pos)
         search_pos = _ses.get("search_paned_position", 0)
         if search_pos > 0:
             self._search_paned.set_position(search_pos)
@@ -629,6 +637,7 @@ class MainWindow(Adw.ApplicationWindow):
             expanded_vaults=self._vault_tree.get_expanded_paths(),
             search_visible=self._search_bar.get_visible(),
             search_paned_position=self._search_paned.get_position(),
+            sidebar_paned_position=self._sidebar_paned.get_position(),
         )
 
     def _restore_vault_session(self, vault_path: str) -> None:
@@ -1121,7 +1130,7 @@ class MainWindow(Adw.ApplicationWindow):
         if tab and tab.editor is editor:
             if tab.preview.get_visible():
                 self._refresh_preview()
-            self._sidebar.update_for_file(editor.file_path, editor.get_text())
+            self._sidebar.update_text_only(editor.file_path, editor.get_text())
 
     # ── Preview ────────────────────────────────────────────────────
 
@@ -1215,6 +1224,7 @@ class MainWindow(Adw.ApplicationWindow):
             expanded_vaults=self._vault_tree.get_expanded_paths(),
             search_visible=self._search_bar.get_visible(),
             search_paned_position=self._search_paned.get_position(),
+            sidebar_paned_position=self._sidebar_paned.get_position(),
         )
 
     def _on_close_request(self, *_args) -> bool:
