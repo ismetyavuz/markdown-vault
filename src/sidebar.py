@@ -30,10 +30,13 @@ class Sidebar(Gtk.Box):
     Signals:
         file-open-requested(str): Emitted when the user clicks a
             backlink, requesting the referenced file to be opened.
+        outline-clicked(int): Emitted when an outline heading is clicked.
+            The argument is the 0-based line number in the editor.
     """
 
     __gsignals__ = {
         "file-open-requested": (GObject.SIGNAL_RUN_LAST, None, (str,)),
+        "outline-clicked": (GObject.SIGNAL_RUN_LAST, None, (int,)),
     }
 
     def __init__(self) -> None:
@@ -97,10 +100,18 @@ class Sidebar(Gtk.Box):
         for match in _HEADING_RE.finditer(text):
             level = len(match.group(1))
             heading = match.group(2)
+            # Calculate 0-based line number from character offset.
+            line = text[:match.start()].count("\n")
             label = Gtk.Label(label=f"{'  ' * (level - 1)}\u25cf {heading}")
             label.set_xalign(0)
             label.add_css_class("outline-item")
             label.set_size_request(-1, 28)
+            gesture = Gtk.GestureClick()
+            gesture.connect(
+                "released",
+                lambda _g, _n, _x, _y, ln=line: self.emit("outline-clicked", ln),
+            )
+            label.add_controller(gesture)
             self._outline_list["list"].append(label)
 
     # ------------------------------------------------------------------

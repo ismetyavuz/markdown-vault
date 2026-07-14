@@ -136,6 +136,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         self._sidebar = Sidebar()
         self._sidebar.connect("file-open-requested", self._on_sidebar_file_requested)
+        self._sidebar.connect("outline-clicked", self._on_outline_clicked)
         outer.append(self._sidebar)
 
         self._search_bar = SearchBar(get_vault_paths=self._vault_tree.get_vault_paths)
@@ -765,11 +766,24 @@ class MainWindow(Adw.ApplicationWindow):
             self._switch_vault(vault)
         self._open_file(file_path)
 
-    def _on_search_result_selected(self, _search_bar, file_path: str) -> None:
+    def _on_outline_clicked(self, _sidebar, line: int) -> None:
+        tab = self._tab_bar.get_current_tab()
+        if not tab:
+            return
+        tab.editor.scroll_to_line(line)
+        text = tab.editor.get_text()
+        tab.preview.scroll_to_line(line, text)
+
+    def _on_search_result_selected(self, _search_bar, file_path: str, line_num: int) -> None:
         vault = self._find_vault_for_file(file_path)
         if vault and vault != self._active_vault:
             self._switch_vault(vault)
         self._open_file(file_path)
+        tab = self._tab_bar.get_current_tab()
+        if tab:
+            tab.editor.scroll_to_line(line_num - 1)
+            text = tab.editor.get_text()
+            tab.preview.scroll_to_line(line_num - 1, text)
 
     def _on_preview_link_clicked(self, _preview, file_path: str) -> None:
         vault = self._find_vault_for_file(file_path)

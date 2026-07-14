@@ -132,6 +132,14 @@ class Editor(Gtk.ScrolledWindow):
         """Move keyboard focus to the text view."""
         self._view.grab_focus()
 
+    def scroll_to_line(self, line: int) -> None:
+        """Scroll the view to *line* (0-based) and place the cursor there."""
+        _ok, iter = self._buffer.get_iter_at_line(line)
+        if _ok:
+            self._view.scroll_to_iter(iter, 0.25, True, 0.0, 0.5)
+            self._buffer.place_cursor(iter)
+            self._view.grab_focus()
+
     # ── Zoom ────────────────────────────────────────────────────────
 
     @property

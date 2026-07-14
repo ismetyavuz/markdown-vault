@@ -23,7 +23,18 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 gi.require_version("WebKit", "6.0")
 
-from gi.repository import Gtk, Adw, WebKit, GObject, Gdk
+from gi.repository import Gtk, Adw, WebKit, GObject, Gdk, GLib
+
+
+_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
+
+
+def _heading_to_slug(heading: str) -> str:
+    """Convert a heading text to a GitHub-style slug for HTML id attributes."""
+    slug = heading.lower().strip()
+    slug = re.sub(r"[^\w\s-]", "", slug)
+    slug = re.sub(r"[\s]+", "-", slug)
+    return slug
 
 
 HTML_TEMPLATE = """\
@@ -315,6 +326,29 @@ class Preview(Gtk.ScrolledWindow):
         )
         base_uri = f"file://{base_dir}/" if base_dir else None
         self._web_view.load_html(full_html, base_uri)
+
+    def scroll_to_line(self, line: int, text: str) -> None:
+        """Scroll the preview to the heading at the given 0-based *line*.
+
+        Extracts the heading slug from the source *text* and uses
+        JavaScript to scroll the matching element into view.
+        """
+        # Find the nearest heading at or before the target line.
+        target_heading = None
+        for m in _HEADING_RE.finditer(text):
+            heading_line = text[:m.start()].count("\n")
+            if heading_line <= line:
+                target_heading = m.group(2)
+            else:
+                break
+        if not target_heading:
+            return
+        slug = _heading_to_slug(target_heading)
+        js = f'document.getElementById("{slug}")?.scrollIntoView({{behavior:"smooth",block:"start"}});'
+        GLib.idle_add(
+            self._web_view.evaluate_javascript,
+            js, len(js), None, None, None, None,
+        )
 
     @staticmethod
     def _get_theme_colors() -> dict[str, str]:

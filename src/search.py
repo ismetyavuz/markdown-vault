@@ -24,7 +24,7 @@ class SearchBar(Gtk.Box):
     """
 
     __gsignals__ = {
-        "file-selected": (GObject.SIGNAL_RUN_LAST, None, (str,)),
+        "file-selected": (GObject.SIGNAL_RUN_LAST, None, (str, int)),
         "close-requested": (GObject.SIGNAL_RUN_LAST, None, ()),
     }
 
@@ -137,7 +137,7 @@ class SearchBar(Gtk.Box):
         gesture = Gtk.GestureClick()
         gesture.connect(
             "released",
-            lambda _g, _n, _x, _y, fp=filepath: self.emit("file-selected", fp),
+            lambda _g, _n, _x, _y, fp=filepath, ln=line_num: self.emit("file-selected", fp, ln),
         )
         row.add_controller(gesture)
         return row
