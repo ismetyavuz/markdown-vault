@@ -121,6 +121,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         self._content_stack = Gtk.Stack()
         self._content_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self._content_stack.set_vexpand(True)
 
         # Welcome placeholder shown when no file is open.
         self._welcome = self._build_welcome()
