@@ -5,6 +5,7 @@ to an IDE project browser.  Only ``.md`` files are shown; hidden
 files and directories (prefixed with ``.``) are skipped.
 """
 
+import logging
 import os
 from pathlib import Path
 
@@ -15,6 +16,8 @@ gi.require_version("Adw", "1")
 gi.require_version("Pango", "1.0")
 
 from gi.repository import Gtk, GLib, GObject, Pango, Gio, Gdk
+
+logger = logging.getLogger(__name__)
 
 # Column indices for the TreeStore: name, path, is_dir, icon_name, hint.
 _COL_NAME = 0
@@ -72,6 +75,7 @@ class VaultTree(Gtk.Box):
         self._active_vault: str | None = None
         self._context_path: str | None = None
         self._context_is_dir: bool = False
+        self._popover: Gtk.PopoverMenu | None = None
 
         # --- Header with title and add-button ---
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -114,7 +118,7 @@ class VaultTree(Gtk.Box):
         # Right-click context menu.
         self._menu_click = Gtk.GestureClick()
         self._menu_click.set_button(3)
-        self._menu_click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        self._menu_click.set_propagation_phase(Gtk.PropagationPhase.BUBBLE)
         self._menu_click.connect("pressed", self._on_right_click)
         self._tree_view.add_controller(self._menu_click)
 
@@ -159,10 +163,10 @@ class VaultTree(Gtk.Box):
         self._tree_view.add_controller(self._drop_target)
         self._drop_hover_path: str | None = None
 
-        scrolled = Gtk.ScrolledWindow()
-        scrolled.set_child(self._tree_view)
-        scrolled.set_vexpand(True)
-        self.append(scrolled)
+        self._scrolled = Gtk.ScrolledWindow()
+        self._scrolled.set_child(self._tree_view)
+        self._scrolled.set_vexpand(True)
+        self.append(self._scrolled)
 
     # ------------------------------------------------------------------
     # Public API
@@ -286,17 +290,14 @@ class VaultTree(Gtk.Box):
         elif self._context_path:
             parent_dir = str(Path(self._context_path).parent)
         else:
-            # Empty space click — use first vault or return.
             parent_dir = self._vault_paths[0] if self._vault_paths else None
 
         menu = Gio.Menu()
 
-        # New File / New Folder — always available if we have a parent.
         if parent_dir:
             menu.append("New File", "ctx.new-file")
             menu.append("New Folder", "ctx.new-folder")
 
-        # Rename — only for non-vault-root items.
         is_vault_root = (
             self._context_is_dir
             and self._context_path
@@ -305,11 +306,9 @@ class VaultTree(Gtk.Box):
         if self._context_path and not is_vault_root:
             menu.append("Rename", "ctx.rename")
 
-        # Delete — only for non-vault-root items.
         if self._context_path and not is_vault_root:
             menu.append("Delete", "ctx.delete")
 
-        # Close File — only for open .md files.
         if self._context_path and not self._context_is_dir and self._is_open_file(self._context_path):
             menu.append("Close File", "ctx.close-file")
 
@@ -343,18 +342,35 @@ class VaultTree(Gtk.Box):
             action.connect("activate", lambda *_: self.emit("close-file-requested", path))
             action_group.add_action(action)
 
-        self._tree_view.insert_action_group("ctx", action_group)
+        # Parent the action group on the ScrolledWindow (parent of PopoverMenu
+        # in the widget hierarchy, so PopoverMenu can resolve ctx.* actions).
+        # PopoverMenu is also parented on ScrolledWindow to fix hover highlighting
+        # (known GTK4 bug: PopoverMenu hover breaks when parented on TreeView).
+        logger.debug("Context menu: inserting action group 'ctx' on scrolled window")
+        self._scrolled.insert_action_group("ctx", action_group)
 
-        popover = Gtk.PopoverMenu.new_from_model(menu)
-        popover.set_parent(self._tree_view)
-        # Position at the click coordinates.
+        if self._popover is None:
+            self._popover = Gtk.PopoverMenu.new_from_model(menu)
+            self._popover.set_parent(self._scrolled)
+            self._popover.set_has_arrow(False)
+            self._popover.connect("closed", self._on_popover_closed)
+        else:
+            self._popover.set_menu_model(menu)
         rect = Gdk.Rectangle()
         rect.x = x
         rect.y = y
         rect.width = 1
         rect.height = 1
-        popover.set_pointing_to(rect)
-        popover.popup()
+        self._popover.set_pointing_to(rect)
+        self._popover.popup()
+
+    def _on_popover_closed(self, _popover) -> None:
+        """Remove action group after a short delay to let pending actions fire."""
+        def _cleanup():
+            logger.debug("Context menu: removing action group 'ctx'")
+            self._scrolled.insert_action_group("ctx", None)
+            return False
+        GLib.timeout_add(50, _cleanup)
 
     def _is_open_file(self, file_path: str) -> bool:
         """Check if *file_path* is currently open in a tab.
