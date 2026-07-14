@@ -158,7 +158,9 @@ class MainWindow(Adw.ApplicationWindow):
         self._load_vaults()
 
         # Restore session: sidebar, search, tabs, active tab, expanded vaults.
-        self._sidebar.set_visible(_ses.get("sidebar_visible", False))
+        sidebar_visible = _ses.get("sidebar_visible", False)
+        self._sidebar.set_visible(sidebar_visible)
+        self._sidebar_toggle.set_active(sidebar_visible)
         search_pos = _ses.get("search_paned_position", 0)
         if search_pos > 0:
             self._search_paned.set_position(search_pos)
@@ -400,7 +402,13 @@ class MainWindow(Adw.ApplicationWindow):
         menu_btn.set_menu_model(menu)
         header.pack_end(menu_btn)
 
-        # Search toggle button (left of hamburger).
+        # Sidebar toggle button (left of hamburger).
+        self._sidebar_toggle = Gtk.ToggleButton(icon_name="view-right-sidebar-symbolic")
+        self._sidebar_toggle.set_tooltip_text("Toggle Sidebar (Ctrl+B)")
+        self._sidebar_toggle.connect("toggled", self._on_sidebar_toggled)
+        header.pack_end(self._sidebar_toggle)
+
+        # Search toggle button (left of sidebar).
         self._search_toggle = Gtk.ToggleButton(icon_name="edit-find-symbolic")
         self._search_toggle.set_tooltip_text("Full-Text Search (Ctrl+F)")
         self._search_toggle.connect("toggled", self._on_search_toggled)
@@ -1121,7 +1129,12 @@ class MainWindow(Adw.ApplicationWindow):
     # ── Misc ───────────────────────────────────────────────────────
 
     def _toggle_sidebar(self) -> None:
-        self._sidebar.set_visible(not self._sidebar.get_visible())
+        visible = self._sidebar.get_visible()
+        self._sidebar.set_visible(not visible)
+        self._sidebar_toggle.set_active(not visible)
+
+    def _on_sidebar_toggled(self, btn: Gtk.ToggleButton) -> None:
+        self._sidebar.set_visible(btn.get_active())
 
     def _toggle_search(self) -> None:
         visible = self._search_bar.get_visible()
