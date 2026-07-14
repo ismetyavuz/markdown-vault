@@ -116,27 +116,9 @@ tail -5 tmp/mv-stderr.log
 3. **Validieren:** 2s warten → prüft Log auf `"main window presented"` → Exit-Code 0 bei Erfolg, 1 bei Fehler.
 4. **Logs:** Schreibt nach `tmp/mv-stdout.log` / `tmp/mv-stderr.log`, PID in `tmp/markdown-vault.pid`.
 
-**WICHTIG:** Vor jedem Test **immer** `./scripts/test-app.sh` nutzen — nie manuell `pkill` + `setsid` mixen. Verhindert verwaiste Prozesse, garantiert sauberen Neustart, Exit-Code für CI nutzbar.
-
-**Start-Prozedur (immer befolgen):**
-1. `pkill -f "python3 -m src.main" 2>/dev/null; sleep 1`  — existierende Instanzen killen (NUR unser Prozess!)
-2. `pgrep -f "src.main" && echo "LÄUFT NOCH!" || echo "FREI"`  — prüfen
-3. `setsid python3 -m src.main >tmp/mv-stdout.log 2>tmp/mv-stderr.log & disown`  — detached starten
-4. `sleep 2; tail -5 tmp/mv-stderr.log`  — Logs prüfen ("main window presented")
+**WICHTIG:** Vor jedem Test **immer** `./scripts/test-app.sh` nutzen — nie manuell `pkill` + `setsid` mixen. Verhindert verwaiste Prozesse, garantiert sauberen Neustart, Exit-Code für CI nutzbar. Danach eine Testanleitung für den User ausgeben und auf Feedback warten.
 
 ```bash
-# Run from source (no install needed)
-python3 -m src.main
-
-# Run detached for manual testing (survives bash tool timeout)
-setsid python3 -m src.main >tmp/mv-stdout.log 2>tmp/mv-stderr.log &
-disown
-# Check logs: tail -f tmp/mv-stderr.log
-# Kill later: pkill -f "src.main"
-
-# IMPORTANT: Before starting a new instance for testing, ALWAYS kill
-# all existing instances first to avoid duplicate windows:
-# pkill -f "python3 -m src.main" || true
 # (NICHT killall python3 — das killt auch firewalld & andere System-Python-Prozesse!)
 
 # Install dependencies (openSUSE Tumbleweed)

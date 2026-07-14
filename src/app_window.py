@@ -724,6 +724,10 @@ class MainWindow(Adw.ApplicationWindow):
         tab = self._tab_bar.add_tab(file_path, editor, preview)
         tab.view_mode = view_mode
 
+        # Mark unsaved tabs with italic styling.
+        tab.editor.connect("modified-changed", self._on_editor_modified)
+        self._tab_bar._set_tab_unmodified(file_path, tab.editor.is_modified)
+
         # Sync the header toggle buttons to match the restored view mode.
         self._sync_view_toggle(view_mode)
 
@@ -767,6 +771,15 @@ class MainWindow(Adw.ApplicationWindow):
         if vault and vault != self._active_vault:
             self._active_vault = vault
             self._vault_tree.set_active_vault(vault)
+
+    def _on_editor_modified(self, _editor, dirty: bool) -> None:
+        """Update the italic indicator on the tab for *dirty*."""
+        logging.debug("_on_editor_modified: path=%s dirty=%s",
+                      self._tab_bar.get_current_path(), dirty)
+        self._tab_bar._set_tab_unmodified(
+            self._tab_bar.get_current_path() or "",
+            dirty,
+        )
 
     def _on_tab_closed(self, _tab_bar, file_path: str) -> None:
         self.mru.remove(file_path)
@@ -971,6 +984,11 @@ class MainWindow(Adw.ApplicationWindow):
             self._content_stack.add_named(child, new_path)
             if self._tab_bar.get_current_path() == new_path:
                 self._content_stack.set_visible_child_name(new_path)
+
+        # Sync the unmodified indicator with the renamed tab.
+        tab = self._tab_bar.get_tab(new_path)
+        if tab:
+            self._tab_bar._set_tab_unmodified(new_path, tab.editor.is_modified)
 
     # ── Navigation history ─────────────────────────────────────────
 

@@ -174,6 +174,7 @@ class TabBar(Gtk.Box):
         container.set_margin_end(2)
 
         label = Gtk.Label(label=title)
+        label.add_css_class("label")
         label.set_ellipsize(3)
         container.append(label)
 
@@ -216,3 +217,14 @@ class TabBar(Gtk.Box):
                 child.add_css_class("active")
             else:
                 child.remove_css_class("active")
+
+    def _set_tab_unmodified(self, file_path: str, dirty: bool) -> None:
+        """Add/remove the ``tab-unmodified`` CSS class to mark unsaved tabs."""
+        for child in self._box:
+            fp = getattr(child, "_file_path", None)
+            if fp is None or fp != file_path:
+                continue
+            if dirty:
+                child.add_css_class("tab-unmodified")
+            else:
+                child.remove_css_class("tab-unmodified")

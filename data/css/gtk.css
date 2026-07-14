@@ -11,6 +11,10 @@
     border-color: var(--accent_color);
 }
 
+.tab.tab-unmodified .label {
+    font-style: italic;
+}
+
 .tab:hover {
     background: color-mix(in srgb, var(--card_bg_color) 70%, transparent);
 }
