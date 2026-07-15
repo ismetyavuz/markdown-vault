@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+"""Markdown Vault — CLI launcher for desktop file and manual execution."""
+
+import sys
+from pathlib import Path
+
+import setproctitle
+
+setproctitle.setproctitle("markdown-vault")
+
+project_root = Path(__file__).resolve().parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from src.main import main
+
+raise SystemExit(main())

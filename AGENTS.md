@@ -52,6 +52,7 @@ Markdown Vault — a GNOME desktop app for editing and previewing Markdown files
 - **Zoom**: Ctrl+plus/minus/0 keyboard shortcuts; Ctrl+Wheel zoom on content area; per-tab zoom persisted in session.
 - **Session persistence**: window size, sidebar, tabs (view modes + split positions), active tab, expanded vaults, editor/preview zoom.
 - **Rich Markdown (pymdown-extensions)**: strikethrough `~~text~~`, highlight `==text==`, superscript `^sup^`, subscript `~sub~`, task lists `- [ ]`, tasklist `- [x]`, superfences (tabs, line numbers, highlight lines), magic links (auto URLs, @mentions, #issues), keyboard keys `++ctrl+c++`, smart symbols (quotes, dashes, ellipsis), emoji shortcodes `:smile:`, math formulas `$...$`, task lists with checkboxes.
+- **CLI launcher**: `bin/markdown-vault` mit Shebang; `setproctitle` für korrekten Prozessnamen (für `ps`/`killall`).
 
 ## Project structure (planned)
 
@@ -124,21 +125,24 @@ tail -5 tmp/mv-stderr.log
 # Install dependencies (openSUSE Tumbleweed)
 sudo zypper install python3-gobject python3-gobject-Gdk gtk4-devel gtk4-tools \
   libadwaita-devel gtksourceview5-devel webkitgtk4-devel \
-  gobject-introspection-devel python3-PyYAML python3-markdown meson gcc
+  gobject-introspection-devel python3-PyYAML python3-markdown \
+  python313-setproctitle meson gcc
 
 # Install dependencies (Fedora)
 sudo dnf install python3-gobject gtk4-devel libadwaita-devel gtksourceview5-devel \
   webkit2gtk6.0-devel gobject-introspection-devel python3-markdown \
-  python3-pyyaml meson gcc
+  python3-pyyaml python3-setproctitle meson gcc
 
 # Install dependencies (Ubuntu/Debian)
 sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-4.0 libgtk-4-dev \
   libadwaita-1-dev libwebkitgtk-6.0-dev libgtksourceview-5-dev \
-  libgirepository1.0-dev python3-markdown python3-yaml meson gcc
+  libgirepository1.0-dev python3-markdown python3-yaml \
+  python3-setproctitle meson gcc
 
 # Install dependencies (Arch)
 sudo pacman -S python python-gobject gtk4 libadwaita webkitgtk-6.0 \
-  gtksourceview5 python-markdown python-pyyaml gobject-introspection meson gcc
+  gtksourceview5 python-markdown python-pyyaml python-setproctitle \
+  gobject-introspection meson gcc
 
 # Build with meson
 meson setup builddir

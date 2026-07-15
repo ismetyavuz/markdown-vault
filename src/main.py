@@ -73,9 +73,17 @@ def main() -> int:
     """Application entry point."""
     logger.info("app starting (pid=%d)", os.getpid())
     app = MarkdownVaultApp()
-    ret = app.run(sys.argv)
-    logger.info("app.run() returned %s", ret)
-    return ret
+    try:
+        ret = app.run(sys.argv)
+        logger.info("app.run() returned %s", ret)
+        return ret
+    except KeyboardInterrupt:
+        logger.info("interrupted by user")
+        app.quit()
+        return 0
+    except SystemExit as e:
+        logger.info("exit requested: %s", e.code)
+        return e.code if isinstance(e.code, int) else 0
 
 
 if __name__ == "__main__":

@@ -44,6 +44,7 @@ sudo zypper install \
   python3-markdown \
   python313-pymdown-extensions \
   python313-Pygments \
+  python313-setproctitle \
   meson \
   gcc
 ```
@@ -64,6 +65,7 @@ sudo dnf install \
   python3-pyyaml \
   python3-pymdown-extensions \
   python3-pygments \
+  python3-setproctitle \
   meson \
   gcc
 ```
@@ -86,6 +88,7 @@ sudo apt install \
   python3-yaml \
   python3-pymdownx \
   python3-pygments \
+  python3-setproctitle \
   meson \
   gcc
 ```
@@ -106,6 +109,7 @@ sudo pacman -S \
   python-yaml \
   python-pymdown-extensions \
   python-pygments \
+  python-setproctitle \
   gobject-introspection \
   meson \
   gcc
