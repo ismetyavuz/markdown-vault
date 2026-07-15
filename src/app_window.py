@@ -95,8 +95,8 @@ class MainWindow(Adw.ApplicationWindow):
 
         root.append(self._build_header())
 
-        main_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
-        main_paned.set_wide_handle(True)
+        self._main_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+        self._main_paned.set_wide_handle(True)
 
         self._vault_tree = VaultTree()
         self._vault_tree.connect("file-selected", self._on_file_selected_from_tree)
@@ -107,9 +107,9 @@ class MainWindow(Adw.ApplicationWindow):
         self._vault_tree.connect("delete-requested", self._on_delete_requested)
         self._vault_tree.connect("close-file-requested", self._on_close_file_requested)
         self._vault_tree.connect("file-renamed", self._on_file_renamed)
-        main_paned.set_start_child(self._vault_tree)
-        main_paned.set_resize_start_child(True)
-        main_paned.set_shrink_start_child(False)
+        self._main_paned.set_start_child(self._vault_tree)
+        self._main_paned.set_resize_start_child(False)
+        self._main_paned.set_shrink_start_child(False)
 
         centre = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
 
@@ -129,8 +129,8 @@ class MainWindow(Adw.ApplicationWindow):
         self._content_stack.set_visible_child_name("__welcome__")
         centre.append(self._content_stack)
 
-        main_paned.set_end_child(centre)
-        main_paned.set_resize_end_child(True)
+        self._main_paned.set_end_child(centre)
+        self._main_paned.set_resize_end_child(True)
 
         self._sidebar = Sidebar()
         self._sidebar.connect("file-open-requested", self._on_sidebar_file_requested)
@@ -138,7 +138,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         self._sidebar_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
         self._sidebar_paned.set_wide_handle(True)
-        self._sidebar_paned.set_start_child(main_paned)
+        self._sidebar_paned.set_start_child(self._main_paned)
         self._sidebar_paned.set_resize_start_child(True)
         self._sidebar_paned.set_shrink_start_child(False)
         self._sidebar_paned.set_end_child(self._sidebar)
@@ -173,6 +173,9 @@ class MainWindow(Adw.ApplicationWindow):
         search_pos = _ses.get("search_paned_position", 0)
         if search_pos > 0:
             self._search_paned.set_position(search_pos)
+        main_pos = _ses.get("main_paned_position", 0)
+        if main_pos > 0:
+            self._main_paned.set_position(main_pos)
         if _ses.get("search_visible", False):
             self._search_bar.set_visible(True)
             self._search_toggle.set_active(True)
@@ -637,6 +640,7 @@ class MainWindow(Adw.ApplicationWindow):
             search_visible=self._search_bar.get_visible(),
             search_paned_position=self._search_paned.get_position(),
             sidebar_paned_position=self._sidebar_paned.get_position(),
+            main_paned_position=self._main_paned.get_position(),
         )
 
     def _restore_vault_session(self, vault_path: str) -> None:
@@ -1247,6 +1251,7 @@ class MainWindow(Adw.ApplicationWindow):
             search_visible=self._search_bar.get_visible(),
             search_paned_position=self._search_paned.get_position(),
             sidebar_paned_position=self._sidebar_paned.get_position(),
+            main_paned_position=self._main_paned.get_position(),
         )
 
     def _on_close_request(self, *_args) -> bool:

@@ -31,6 +31,7 @@ def save_session(
     search_visible: bool = False,
     search_paned_position: int = 0,
     sidebar_paned_position: int = 0,
+    main_paned_position: int = 0,
 ) -> None:
     """Write the current session state to disk.
 
@@ -41,6 +42,7 @@ def save_session(
     *search_visible* whether the search bar is open.
     *search_paned_position* height of the search results area.
     *sidebar_paned_position* width of the sidebar.
+    *main_paned_position* width of the vault tree panel.
     """
     config._ensure_config_dir()
     data = {
@@ -52,6 +54,7 @@ def save_session(
         "search_visible": search_visible,
         "search_paned_position": search_paned_position,
         "sidebar_paned_position": sidebar_paned_position,
+        "main_paned_position": main_paned_position,
     }
     try:
         SESSION_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -77,6 +80,7 @@ def load_session() -> dict:
     data.setdefault("search_visible", False)
     data.setdefault("search_paned_position", 0)
     data.setdefault("sidebar_paned_position", 0)
+    data.setdefault("main_paned_position", 0)
     # Migration: old sessions had top-level "tabs" + "active_tab".
     _migrate_legacy_session(data)
     return data
@@ -147,4 +151,5 @@ def _defaults() -> dict:
         "search_visible": False,
         "search_paned_position": 0,
         "sidebar_paned_position": 0,
+        "main_paned_position": 0,
     }
