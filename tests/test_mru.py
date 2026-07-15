@@ -166,6 +166,31 @@ class TestMRUManager(unittest.TestCase):
         result = self.mru.prev()
         self.assertIsNone(result)
 
+    # ── clear ─────────────────────────────────────────────────────
+
+    def test_clear_empties_list(self):
+        self.mru.push(self._path(0))
+        self.mru.push(self._path(1))
+        self.mru.clear()
+        self.assertEqual(self.mru.tabs, [])
+
+    def test_clear_resets_position(self):
+        self.mru.push(self._path(0))
+        self.mru.push(self._path(1))
+        self.mru.next()
+        self.mru.clear()
+        self.assertEqual(self.mru.pos, 0)
+
+    def test_clear_on_empty_is_noop(self):
+        self.mru.clear()
+        self.assertEqual(self.mru.tabs, [])
+
+    def test_push_after_clear(self):
+        self.mru.push(self._path(0))
+        self.mru.clear()
+        self.mru.push(self._path(1))
+        self.assertEqual(self.mru.tabs, [self._path(1)])
+
     # ── tabs property ──────────────────────────────────────────────
 
     def test_tabs_returns_copy(self):
