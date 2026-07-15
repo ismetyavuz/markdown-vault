@@ -161,17 +161,15 @@ def _build_category(
 
 def _build_page(
     categories: list[tuple[str, list[tuple[str, str]]]],
-) -> Gtk.Box:
-    """Return a vertical box containing all categories for one page."""
-    page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+) -> Gtk.Widget:
+    """Return a 2×2 grid of categories for one page."""
+    page = Gtk.Grid(column_spacing=24, row_spacing=12, halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
     page.add_css_class("help-page")
 
     for idx, (title, entries) in enumerate(categories):
-        page.append(_build_category(title, entries))
-        if idx < len(categories) - 1:
-            sep = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
-            sep.add_css_class("help-separator")
-            page.append(sep)
+        col = idx % 2
+        row = idx // 2
+        page.attach(_build_category(title, entries), col, row, 1, 1)
 
     return page
 
