@@ -77,6 +77,9 @@ class MainWindow(Adw.ApplicationWindow):
         self._active_vault: str | None = None
         self._settings = config.load_settings()
 
+        # Guard against re-entrant position clamping.
+        self._paned_clamping: bool = False
+
         # MRU tab manager.
         self.mru = mru.MRUManager()
 
@@ -157,6 +160,10 @@ class MainWindow(Adw.ApplicationWindow):
         self._search_paned.set_end_child(self._search_bar)
         self._search_paned.set_resize_end_child(False)
         self._search_paned.set_shrink_end_child(True)
+
+        # Clamp positions so end children never go below 20px.
+        self._sidebar_paned.connect("notify::position", self._clamp_sidebar_position)
+        self._search_paned.connect("notify::position", self._clamp_search_position)
 
         root.append(self._search_paned)
 
@@ -1195,6 +1202,32 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_search_close_requested(self, _search_bar) -> None:
         self._search_bar.set_visible(False)
         self._search_toggle.set_active(False)
+
+    def _clamp_sidebar_position(self, paned: Gtk.Paned, _pspec) -> None:
+        if self._paned_clamping:
+            return
+        width = paned.get_allocated_width()
+        if width <= 0:
+            return
+        pos = paned.get_position()
+        max_pos = width - 20
+        if pos > max_pos:
+            self._paned_clamping = True
+            paned.set_position(max_pos)
+            self._paned_clamping = False
+
+    def _clamp_search_position(self, paned: Gtk.Paned, _pspec) -> None:
+        if self._paned_clamping:
+            return
+        height = paned.get_allocated_height()
+        if height <= 0:
+            return
+        pos = paned.get_position()
+        max_pos = height - 20
+        if pos > max_pos:
+            self._paned_clamping = True
+            paned.set_position(max_pos)
+            self._paned_clamping = False
 
     def _save_current(self) -> None:
         tab = self._tab_bar.get_current_tab()
