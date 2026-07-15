@@ -1,5 +1,11 @@
 /* GTK-specific CSS for Markdown Vault */
 
+headerbar button {
+    padding: 4px 6px;
+    min-width: 28px;
+    min-height: 28px;
+}
+
 .tab {
     padding: 4px 12px;
     border-radius: 6px;
@@ -65,11 +71,11 @@
 /* ── Markdown Help Overlay ────────────────────────────────────────── */
 
 .help-overlay {
-    background: alpha(black, 0.75);
+    background: alpha(black, 0.50);
 }
 
 .help-card {
-    background: alpha(black, 0.75);
+    background: rgba(30, 30, 30, 0.95);
     border: none;
     border-radius: 12px;
     padding: 0;

@@ -251,6 +251,11 @@ class MainWindow(Adw.ApplicationWindow):
         self._setup_autosave()
         self._setup_complete = True
 
+        # Responsive header: hide buttons when window is narrow.
+        self.connect("notify::default-width", self._on_window_resize)
+        self.connect("notify::default-height", self._on_window_resize)
+        GLib.idle_add(self._update_header_buttons)
+
         # Re-apply editor colour scheme when the user switches dark/light.
         # Defer so GTK has time to propagate the new style.
         Adw.StyleManager.get_default().connect(
@@ -363,10 +368,10 @@ class MainWindow(Adw.ApplicationWindow):
         new_btn.connect("clicked", lambda *_: self._on_new_file())
         header.pack_start(new_btn)
 
-        save_btn = Gtk.Button(icon_name="document-save-symbolic")
-        save_btn.set_tooltip_text("Save (Ctrl+S)")
-        save_btn.connect("clicked", lambda *_: self._save_current())
-        header.pack_start(save_btn)
+        self._save_btn = Gtk.Button(icon_name="document-save-symbolic")
+        self._save_btn.set_tooltip_text("Save (Ctrl+S)")
+        self._save_btn.connect("clicked", lambda *_: self._save_current())
+        header.pack_start(self._save_btn)
 
         # Navigation history buttons.
         self._back_btn = Gtk.Button(icon_name="go-previous-symbolic")
@@ -440,6 +445,21 @@ class MainWindow(Adw.ApplicationWindow):
         header.pack_end(self._search_toggle)
 
         return header
+
+    def _on_window_resize(self, *_args) -> None:
+        self._update_header_buttons()
+
+    def _update_header_buttons(self) -> None:
+        """Show/hide header buttons based on window width."""
+        w = self.get_width()
+        # Narrow (<550): only new + hamburger + search
+        # Medium (<750): + save, hide nav
+        # Wide (>=750): all visible
+        narrow = w < 550
+        medium = w < 750
+        self._save_btn.set_visible(not narrow)
+        self._back_btn.set_visible(not medium)
+        self._forward_btn.set_visible(not medium)
 
     # ── Actions ────────────────────────────────────────────────────
 

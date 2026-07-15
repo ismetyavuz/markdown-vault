@@ -192,7 +192,8 @@ class _NavDots(Gtk.Box):
             btn = Gtk.Button()
             btn.add_css_class("help-dot")
             btn._page_index = i  # type: ignore[attr-defined]
-            btn.connect("clicked", self._on_clicked)
+            # Connect with proper lambda to capture the index
+            btn.connect("clicked", lambda _btn, i=i: self._on_clicked(i))
             self.append(btn)
             self._dots.append(btn)
         self._update_dots()
@@ -208,9 +209,9 @@ class _NavDots(Gtk.Box):
             else:
                 btn.remove_css_class("active")
 
-    def _on_clicked(self, btn: Gtk.Button) -> None:
+    def _on_clicked(self, page_index: int) -> None:
         if self._on_select:
-            self._on_select(btn._page_index)  # type: ignore[attr-defined]
+            self._on_select(page_index)
 
 
 # ── Main overlay widget ──────────────────────────────────────────────
@@ -228,6 +229,7 @@ class MarkdownHelpOverlay(Gtk.Box):
             hexpand=True,
             vexpand=True,
         )
+        self.set_focusable(True)
         self.add_css_class("help-overlay")
         self.set_visible(False)
 
@@ -241,6 +243,7 @@ class MarkdownHelpOverlay(Gtk.Box):
         # Semi-transparent backdrop — click to close.
         self._click_ctrl = Gtk.GestureClick()
         self._click_ctrl.connect("released", self._on_backdrop_click)
+        self._click_ctrl.set_button(0)  # Primary button
         self.add_controller(self._click_ctrl)
 
         # ── Content card ─────────────────────────────────────────────
@@ -249,9 +252,6 @@ class MarkdownHelpOverlay(Gtk.Box):
             halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER,
         )
         self._card.add_css_class("help-card")
-        # Stop click propagation so clicks inside the card don't close it.
-        card_click = Gtk.GestureClick()
-        self._card.add_controller(card_click)
         self.append(self._card)
 
         # Title bar with close button.
@@ -272,6 +272,7 @@ class MarkdownHelpOverlay(Gtk.Box):
         close_btn.add_css_class("help-close-btn")
         close_btn.set_tooltip_text("Close (Esc)")
         close_btn.connect("clicked", lambda *_: self.hide_overlay())
+        self._close_btn = close_btn
         title_bar.append(close_btn)
 
         self._card.append(title_bar)
@@ -336,7 +337,11 @@ class MarkdownHelpOverlay(Gtk.Box):
         self._update_nav()
         self.set_visible(True)
         self._resize_card()
+        # Grab focus and ensure the overlay gets keyboard events
         self.grab_focus()
+        # Focus the active dot so keyboard navigation works
+        if hasattr(self, '_dots') and self._dots._dots:
+            self._dots._dots[self._current_page].grab_focus()
 
     def _resize_card(self) -> None:
         """Set card to 90% of the toplevel window size."""
@@ -384,5 +389,13 @@ class MarkdownHelpOverlay(Gtk.Box):
             return True
         return False
 
-    def _on_backdrop_click(self, _gesture, _n_press, _x, _y) -> None:
+    def _on_backdrop_click(self, _gesture, _n_press, click_x, click_y) -> None:
+        # Get card allocation
+        card_alloc = self._card.get_allocation()
+        # Check if click is inside the card
+        if (click_x >= card_alloc.x and click_x <= card_alloc.x + card_alloc.width and
+                click_y >= card_alloc.y and click_y <= card_alloc.y + card_alloc.height):
+            # Click was on the card, do nothing
+            return
+        # Click was on the backdrop, close the overlay
         self.hide_overlay()
