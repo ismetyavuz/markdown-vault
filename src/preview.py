@@ -8,13 +8,13 @@ to light and dark mode.
 
 from pathlib import Path
 
+import base64
+import hashlib
 import markdown as md
 import re
 from markdown.extensions import Extension
 from markdown.postprocessors import Postprocessor
 from markdown.preprocessors import Preprocessor
-from pygments import highlight
-from pygments.lexers import get_lexer_by_name, guess_lexer
 from pygments.formatters import HtmlFormatter
 from src.latex_mathml import MathMLPostprocessor
 import gi
@@ -199,6 +199,9 @@ class Preview(Gtk.ScrolledWindow):
         self._css_path = css_path
         self._zoom_level: float = 1.0
         self._vault_paths: list[str] = []
+        self._loaded: bool = False
+        self._base_uri: str | None = None
+        self._last_html_hash: str = ""
 
         self._web_view = WebKit.WebView()
         self._web_view.set_vexpand(True)
@@ -307,8 +310,10 @@ class Preview(Gtk.ScrolledWindow):
     def update_from_text(self, text: str, base_dir: str = "") -> None:
         """Render *text* as Markdown and display the result.
 
-        *base_dir* is used as the base URI for resolving relative
-        image paths referenced in the Markdown.
+        On first call, loads the full HTML template.  On subsequent
+        calls, updates only the ``.markdown-body`` innerHTML via JS
+        to avoid a full document reload (preserving scroll position
+        natively without any capture/restore dance).
         """
         html_content = md.markdown(
             text,
@@ -319,15 +324,34 @@ class Preview(Gtk.ScrolledWindow):
         mathml_pp = MathMLPostprocessor()
         html_content = mathml_pp.run(html_content)
 
-        css_content = self._load_css_content()
-        colors = self._get_theme_colors()
-        full_html = HTML_TEMPLATE.format(
-            css_content=css_content,
-            content=html_content,
-            **colors,
-        )
+        html_hash = hashlib.md5(html_content.encode()).hexdigest()
+        if html_hash == self._last_html_hash:
+            return
+        self._last_html_hash = html_hash
+
         base_uri = GLib.filename_to_uri(base_dir + "/") if base_dir else None
-        self._web_view.load_html(full_html, base_uri)
+
+        if not self._loaded:
+            css_content = self._load_css_content()
+            colors = self._get_theme_colors()
+            full_html = HTML_TEMPLATE.format(
+                css_content=css_content,
+                content=html_content,
+                **colors,
+            )
+            self._base_uri = base_uri
+            self._web_view.load_html(full_html, base_uri)
+            self._loaded = True
+        else:
+            encoded = base64.b64encode(html_content.encode()).decode()
+            js = (
+                'document.querySelector(".markdown-body").innerHTML '
+                f'= atob("{encoded}")'
+            )
+            GLib.idle_add(
+                self._web_view.evaluate_javascript,
+                js, len(js), None, None, None, None,
+            )
 
     def scroll_to_line(self, line: int, text: str) -> None:
         """Scroll the preview to the heading at the given 0-based *line*.
@@ -381,11 +405,26 @@ class Preview(Gtk.ScrolledWindow):
         }
 
     def update_theme(self) -> None:
-        """Update the WebView background to match the current GTK theme."""
+        """Update the WebView background and CSS variables to match the current GTK theme."""
         colors = self._get_theme_colors()
         bg = Gdk.RGBA()
         bg.parse(colors["bg_color"])
         self._web_view.set_background_color(bg)
+        if not self._loaded:
+            return
+        js = (
+            "var s=document.documentElement.style;"
+            f's.setProperty("--bg","{colors["bg_color"]}")'
+            f's.setProperty("--fg","{colors["fg_color"]}")'
+            f's.setProperty("--accent","{colors["accent_color"]}")'
+            f's.setProperty("--dim","{colors["dim_color"]}")'
+            f's.setProperty("--card-bg","{colors["card_bg_color"]}")'
+            f's.setProperty("--borders","{colors["borders_color"]}")'
+        )
+        GLib.idle_add(
+            self._web_view.evaluate_javascript,
+            js, len(js), None, None, None, None,
+        )
 
     # ------------------------------------------------------------------
     # Internal

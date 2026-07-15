@@ -80,6 +80,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Guard against re-entrant position clamping.
         self._paned_clamping: bool = False
+        self._preview_debounce_id: int | None = None
 
         # MRU tab manager.
         self.mru = mru.MRUManager()
@@ -1193,10 +1194,25 @@ class MainWindow(Adw.ApplicationWindow):
         tab = self._tab_bar.get_current_tab()
         if tab and tab.editor is editor:
             if tab.preview.get_visible():
-                self._refresh_preview()
+                self._schedule_preview_refresh()
             self._sidebar.update_text_only(editor.file_path, editor.get_text())
 
     # ── Preview ────────────────────────────────────────────────────
+
+    _PREVIEW_DEBOUNCE_MS = 500
+
+    def _schedule_preview_refresh(self) -> None:
+        """Debounce preview refresh to reduce flicker during rapid typing."""
+        if self._preview_debounce_id is not None:
+            GLib.source_remove(self._preview_debounce_id)
+        self._preview_debounce_id = GLib.timeout_add(
+            self._PREVIEW_DEBOUNCE_MS, self._on_preview_debounce,
+        )
+
+    def _on_preview_debounce(self) -> bool:
+        self._preview_debounce_id = None
+        self._refresh_preview()
+        return False
 
     def _refresh_preview(self) -> None:
         """Update the preview for the current tab."""
@@ -1320,6 +1336,9 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_close_request(self, *_args) -> bool:
         """Save session before the window closes."""
         self._cancel_autosave()
+        if self._preview_debounce_id is not None:
+            GLib.source_remove(self._preview_debounce_id)
+            self._preview_debounce_id = None
         self._save_session()
         return False  # Allow the close to proceed.
 
