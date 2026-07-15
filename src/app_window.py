@@ -27,6 +27,7 @@ from .tabs import TabBar
 from .sidebar import Sidebar
 from .search import SearchBar
 from .preferences import PreferencesDialog
+from .markdown_help import MarkdownHelpOverlay
 from . import config
 from . import session
 from . import mru
@@ -93,10 +94,15 @@ class MainWindow(Adw.ApplicationWindow):
         w = _ses["window"]
         self.set_default_size(w.get("width", 1200), w.get("height", 800))
 
-        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        self.set_content(root)
+        root_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
 
-        root.append(self._build_header())
+        root_overlay = Gtk.Overlay()
+        root_overlay.set_child(root_box)
+        self._help_overlay = MarkdownHelpOverlay()
+        root_overlay.add_overlay(self._help_overlay)
+        self.set_content(root_overlay)
+
+        root_box.append(self._build_header())
 
         self._main_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
         self._main_paned.set_wide_handle(True)
@@ -165,7 +171,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._sidebar_paned.connect("notify::position", self._clamp_sidebar_position)
         self._search_paned.connect("notify::position", self._clamp_search_position)
 
-        root.append(self._search_paned)
+        root_box.append(self._search_paned)
 
         self._register_actions()
         self._load_vaults()
@@ -509,6 +515,10 @@ class MainWindow(Adw.ApplicationWindow):
 
         action = Gio.SimpleAction.new("mru-switcher-prev", None)
         action.connect("activate", lambda *_: self._show_mru_switcher(-1))
+        self.add_action(action)
+
+        action = Gio.SimpleAction.new("toggle-help", None)
+        action.connect("activate", lambda *_: self._help_overlay.toggle())
         self.add_action(action)
 
         self._apply_keybindings()

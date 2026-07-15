@@ -59,6 +59,7 @@ class MarkdownVaultApp(Adw.Application):
         self.set_accels_for_action("win.zoom-in", ["<Control>plus", "<Control>equal"])
         self.set_accels_for_action("win.zoom-out", ["<Control>minus"])
         self.set_accels_for_action("win.zoom-reset", ["<Control>0"])
+        self.set_accels_for_action("win.toggle-help", ["<Control>space"])
 
     def _on_activate(self, app: "MarkdownVaultApp") -> None:
         """Present the main window when the application is activated."""
