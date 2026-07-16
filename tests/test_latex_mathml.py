@@ -271,9 +271,11 @@ class TestMathMLRendering(unittest.TestCase):
 
     def test_single_token_binom(self):
         result = latex_to_mathml("\\binom{3}{4}", inline=True)
-        self.assertIn("<mfrac>", result)
+        self.assertIn("<mfrac linethickness=\"0\">", result)
         self.assertIn("<mn>3</mn>", result)
         self.assertIn("<mn>4</mn>", result)
+        self.assertIn("<mo>(</mo>", result)
+        self.assertIn("<mo>)</mo>", result)
 
     def test_single_token_sqrt_n(self):
         result = latex_to_mathml("\\sqrt[3]{x}", inline=True)

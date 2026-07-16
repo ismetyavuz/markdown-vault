@@ -50,6 +50,7 @@ class NodeType(Enum):
     OPERATOR = auto()
     SYMBOL = auto()
     FRAC = auto()
+    BINOM = auto()
     SUM = auto()
     INTEGRAL = auto()
     SQRT = auto()
@@ -450,7 +451,7 @@ class _Parser:
         if cmd in ("binom", "dbinom", "tbinom"):
             top = self._parse_group()
             bot = self._parse_group()
-            return ASTNode(NodeType.FRAC, [top, bot])  # render as fraction (no parens for simplicity)
+            return ASTNode(NodeType.BINOM, [top, bot])
         # Square root
         if cmd == "sqrt":
             opt = self._parse_optional_group()
@@ -720,6 +721,12 @@ def _render_node(node: ASTNode, inline: bool = True) -> str:
         num = _render_node(node.children[0], inline)
         den = _render_node(node.children[1], inline)
         return f"<mfrac><mrow>{num}</mrow><mrow>{den}</mrow></mfrac>"
+
+    if node.type == NodeType.BINOM:
+        # Binomial coefficient: use mfrac with linethickness="0" and fence parentheses
+        top = _render_node(node.children[0], inline)
+        bot = _render_node(node.children[1], inline)
+        return f'<mrow><mo>(</mo><mfrac linethickness="0"><mrow>{top}</mrow><mrow>{bot}</mrow></mfrac><mo>)</mo></mrow>'
 
     if node.type == NodeType.SQRT:
         body = _render_node(node.children[0], inline)
