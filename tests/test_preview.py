@@ -182,6 +182,20 @@ class TestMarkdownConversion(unittest.TestCase):
         )
         self.assertIn("Page", result)
 
+    def test_wikilink_preserves_spaces_no_underscore_no_trailing_slash(self):
+        """Wikilinks should generate href with spaces preserved, no underscores, no trailing slash."""
+        result = md.markdown(
+            "[[Datei B]]",
+            extensions=MARKDOWN_EXTENSIONS,
+            extension_configs=EXTENSION_CONFIGS,
+        )
+        # Should NOT contain underscore or trailing slash
+        self.assertNotIn("Datei_B", result)
+        self.assertNotIn("Datei_B/", result)
+        # Should contain the link with space in href
+        self.assertIn('href="Datei B"', result)
+        self.assertIn("Datei B", result)
+
     def test_converts_bold(self):
         result = md.markdown("**bold**", extensions=MARKDOWN_EXTENSIONS)
         self.assertIn("<strong>", result)
@@ -213,6 +227,14 @@ class TestMarkdownConversion(unittest.TestCase):
         md_text = "`code`"
         result = md.markdown(md_text, extensions=MARKDOWN_EXTENSIONS)
         self.assertIn("<code>", result)
+
+    def test_json_dumps_preserves_unicode(self):
+        import json
+        html = "<p>Grüße Café 日本語 naïve</p>"
+        encoded = json.dumps(html, ensure_ascii=False)
+        self.assertIn("Grüße", encoded)
+        self.assertIn("Café", encoded)
+        self.assertIn("日本語", encoded)
 
 
 class TestPreviewResolveWikilink(unittest.TestCase):
@@ -253,6 +275,33 @@ class TestPreviewResolveWikilink(unittest.TestCase):
     def test_returns_none_for_unknown(self):
         result = self._preview._resolve_wikilink("/nonexistent/Nope.md")
         self.assertIsNone(result)
+
+    def test_resolves_filename_with_spaces(self):
+        """Test that wikilinks with spaces in filename are resolved correctly."""
+        (self._vault / "Datei B.md").write_text("# Datei B")
+        target = str(self._vault / "Datei B")
+        result = self._preview._resolve_wikilink(target)
+        self.assertIsNotNone(result)
+        self.assertTrue(result.endswith("Datei B.md"))
+
+    def test_resolves_filename_with_underscores_fallback(self):
+        """Test fallback: underscore in link resolves to file with spaces."""
+        (self._vault / "Datei B.md").write_text("# Datei B")
+        # Link comes in with underscore (e.g., from older markdown renderers)
+        target = str(self._vault / "Datei_B")
+        result = self._preview._resolve_wikilink(target)
+        self.assertIsNotNone(result)
+        self.assertTrue(result.endswith("Datei B.md"))
+
+    def test_resolves_filename_with_underscores_fallback_subdir(self):
+        """Test fallback works for files in subdirectories."""
+        subdir = self._vault / "Sub Dir"
+        subdir.mkdir()
+        (subdir / "Deep File.md").write_text("# Deep")
+        target = str(self._vault / "Sub_Dir" / "Deep_File")
+        result = self._preview._resolve_wikilink(target)
+        self.assertIsNotNone(result)
+        self.assertTrue(result.endswith("Deep File.md"))
 
 
 class TestPreview(unittest.TestCase):

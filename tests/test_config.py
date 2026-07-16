@@ -69,6 +69,14 @@ class TestLoadVaults(_TempConfigMixin, unittest.TestCase):
         )
         self.assertEqual(_cfg.load_vaults(), [])
 
+    def test_load_vaults_empty_yaml_key(self):
+        _cfg.CONFIG_FILE.write_text("vaults:\n", encoding="utf-8")
+        self.assertEqual(_cfg.load_vaults(), [])
+
+    def test_load_vaults_none_yaml_key(self):
+        _cfg.CONFIG_FILE.write_text("vaults: null\n", encoding="utf-8")
+        self.assertEqual(_cfg.load_vaults(), [])
+
 
 class TestSaveVaults(_TempConfigMixin, unittest.TestCase):
     """Tests for ``save_vaults``."""
@@ -93,6 +101,16 @@ class TestSaveVaults(_TempConfigMixin, unittest.TestCase):
         _cfg.save_vaults(vaults)
         loaded = _cfg.load_vaults()
         self.assertEqual(len(loaded), 1)
+
+    def test_save_vaults_preserves_settings(self):
+        settings = _cfg.load_settings()
+        settings["autosave_interval"] = 999
+        settings["editor_font_size"] = 22
+        _cfg.save_settings(settings)
+        _cfg.save_vaults([{"name": "Notes", "path": "/tmp/notes"}])
+        loaded = _cfg.load_settings()
+        self.assertEqual(loaded["autosave_interval"], 999)
+        self.assertEqual(loaded["editor_font_size"], 22)
 
 
 class TestAddVault(_TempConfigMixin, unittest.TestCase):
@@ -175,6 +193,16 @@ class TestSettings(_TempConfigMixin, unittest.TestCase):
         _cfg.save_settings({"autosave_interval": 10})
         s = _cfg.load_settings()
         self.assertEqual(s["autosave_interval"], 10)
+
+    def test_load_settings_empty_yaml_key(self):
+        _cfg.CONFIG_FILE.write_text("settings:\n", encoding="utf-8")
+        s = _cfg.load_settings()
+        self.assertEqual(s["autosave_interval"], 30)
+
+    def test_no_tmp_files_after_save(self):
+        _cfg.save_vaults([{"name": "A", "path": "/tmp/a"}])
+        tmp_files = list(Path(self._tmpdir).glob("*.tmp"))
+        self.assertEqual(len(tmp_files), 0)
 
 
 if __name__ == "__main__":

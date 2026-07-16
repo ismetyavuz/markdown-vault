@@ -34,6 +34,7 @@ from . import mru
 from . import history
 from . import path_utils
 from . import vault_monitor
+from .backlink_index import BacklinkIndex
 
 
 def _load_gtk_css() -> None:
@@ -147,7 +148,9 @@ class MainWindow(Adw.ApplicationWindow):
         self._main_paned.set_end_child(centre)
         self._main_paned.set_resize_end_child(True)
 
-        self._sidebar = Sidebar()
+        self._backlink_index = BacklinkIndex()
+
+        self._sidebar = Sidebar(backlink_index=self._backlink_index)
         self._sidebar.connect("file-open-requested", self._on_sidebar_file_requested)
         self._sidebar.connect("outline-clicked", self._on_outline_clicked)
 
@@ -211,6 +214,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._vault_tree.set_active_vault(self._active_vault)
 
         # Restore tabs for the active vault.
+        vault_data = {}
         self._nav_history.suppress = True
         if self._active_vault:
             vault_data = _ses.get("vault_sessions", {}).get(self._active_vault, {})
@@ -245,8 +249,6 @@ class MainWindow(Adw.ApplicationWindow):
                         self.mru.push(fp)
                 if active_tab and active_tab in self._tab_bar.get_all_paths():
                     self.mru.push(active_tab)
-        else:
-            self._nav_history.suppress = False
 
         # Defer expansion so the tree view is fully mapped first.
         expanded = _ses.get("expanded_vaults", [])
@@ -633,6 +635,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._vault_tree.set_vaults(paths)
         self._vault_monitor.set_vaults(paths)
         self._sidebar.set_vault_paths(paths)
+        self._backlink_index.build(paths)
 
     # ── Vault switching ──────────────────────────────────────────
 
@@ -834,6 +837,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_vault_added(self, _tree, vault_path: str) -> None:
         """Handle a new vault being added."""
+        self._backlink_index.build([vault_path])
         self._switch_vault(vault_path)
 
     def _on_tab_changed(self, _tab_bar, file_path: str) -> None:
@@ -1025,6 +1029,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_file_renamed(self, _tree, old_path: str, new_path: str) -> None:
         """Handle file/folder rename from the vault tree."""
+        self._backlink_index.rename_file(old_path, new_path)
         # Update all open tabs whose path starts with old_path (dir rename).
         for tab_path in list(self._tab_bar.get_all_paths()):
             if tab_path == old_path or tab_path.startswith(old_path + os.sep):
@@ -1515,9 +1520,15 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_monitor_file_created(self, vault_path: str, file_path: str) -> None:
         """Handle file created event from VaultMonitor."""
         self._vault_tree._handle_file_created(vault_path, file_path)
+        try:
+            text = Path(file_path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            text = ""
+        self._backlink_index.update_file(file_path, text)
 
     def _on_monitor_file_deleted(self, vault_path: str, file_path: str) -> None:
         """Handle file deleted event from VaultMonitor."""
+        self._backlink_index.remove_file(file_path)
         # Also close tab if file is open
         if file_path in self._tab_bar.get_all_paths():
             self._tab_bar.close_tab(file_path)
@@ -1525,10 +1536,16 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_monitor_file_moved(self, vault_path: str, file_path: str, other_path: str) -> None:
         """Handle file moved event from VaultMonitor."""
+        self._backlink_index.rename_file(file_path, other_path)
         self._vault_tree._handle_file_moved(other_path, vault_path, file_path)
 
     def _on_monitor_content_changed(self, vault_path: str, file_path: str) -> None:
         """Handle content-changed event from VaultMonitor."""
+        try:
+            text = Path(file_path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            text = ""
+        self._backlink_index.update_file(file_path, text)
         self._on_external_content_changed(file_path)
 
     # ── AppWindow alias (for tests) ────────────────────────────────

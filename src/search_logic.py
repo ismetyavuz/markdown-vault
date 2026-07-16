@@ -32,14 +32,16 @@ def search_vaults(
                     continue
                 fpath = os.path.join(root, fname)
                 try:
-                    with open(fpath, "r", encoding="utf-8") as fh:
+                    with open(fpath, "r", encoding="utf-8", errors="replace") as fh:
                         for i, line in enumerate(fh, 1):
                             if query_lower in line.lower():
                                 results.append((fpath, i, line))
+                                if len(results) >= max_results:
+                                    return results
                 except OSError:
                     continue
 
-    return results[:max_results]
+    return results
 
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)

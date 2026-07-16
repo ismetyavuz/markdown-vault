@@ -67,7 +67,7 @@ def find_backlinks(target_file: Path, vault_paths: list[str]) -> list[Path]:
                     continue
                 try:
                     text = fpath.read_text(encoding="utf-8")
-                except OSError:
+                except (OSError, UnicodeDecodeError):
                     continue
                 for page, _alias in parse_wikilinks(text):
                     if page == target_stem:

@@ -105,7 +105,7 @@ class Editor(Gtk.ScrolledWindow):
         self._file_path = path
         try:
             text = Path(path).read_text(encoding="utf-8")
-        except OSError as exc:
+        except (OSError, UnicodeDecodeError) as exc:
             logger.warning("Failed to open %s: %s", path, exc)
             text = ""
         self._buffer.begin_irreversible_action()
@@ -132,7 +132,7 @@ class Editor(Gtk.ScrolledWindow):
             Path(self._file_path).write_text(self.get_text(), encoding="utf-8")
             self._buffer.set_modified(False)
             return True
-        except OSError as exc:
+        except (OSError, UnicodeDecodeError) as exc:
             logger.warning("Failed to save %s: %s", self._file_path, exc)
             return False
 

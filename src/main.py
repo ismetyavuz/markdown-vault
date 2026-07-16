@@ -7,6 +7,7 @@ Run this module directly with ``python3 -m src.main``.
 import faulthandler
 import logging
 import os
+import signal
 import sys
 
 logging.basicConfig(
@@ -19,7 +20,6 @@ logger = logging.getLogger("markdown-vault")
 faulthandler.enable(sys.stderr)
 
 if os.environ.get("MARKDOWN_VAULT_DEBUG"):
-    import signal
 
     def _sigusr1(_sig, _frame):
         faulthandler.dump_traceback()
@@ -44,9 +44,22 @@ class MarkdownVaultApp(Adw.Application):
             application_id="de.hannemann.markdown-vault",
             flags=Gio.ApplicationFlags.FLAGS_NONE,
         )
+        self._window: MainWindow | None = None
         self.connect("activate", self._on_activate)
         self.connect("shutdown", lambda *_: logger.info("shutdown signal received"))
         self._setup_accels()
+        self._setup_signals()
+
+    def _setup_signals(self) -> None:
+        """Install Unix signal handlers for clean shutdown."""
+
+        def _sigterm(_sig, _frame):
+            logger.info("SIGTERM received, closing window")
+            if self._window is not None:
+                self._window.close()  # triggers close-request → saves session
+
+        signal.signal(signal.SIGTERM, _sigterm)
+        signal.signal(signal.SIGINT, _sigterm)  # Ctrl+C behaves same
 
     def _setup_accels(self) -> None:
         """Register global keyboard shortcuts."""
@@ -65,6 +78,7 @@ class MarkdownVaultApp(Adw.Application):
         """Present the main window when the application is activated."""
         logger.info("activate signal received")
         win = MainWindow(app)
+        self._window = win
         win.present()
         logger.info("main window presented")
 

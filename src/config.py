@@ -7,6 +7,7 @@ by relative path notation.
 """
 
 import os
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -18,6 +19,21 @@ CONFIG_FILE = CONFIG_DIR / "vaults.yaml"
 def _ensure_config_dir() -> None:
     """Create the configuration directory if it does not exist."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    """Atomically write *content* to *path* via temp file + replace."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(content)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def load_vaults() -> list[dict[str, str]]:
@@ -33,7 +49,7 @@ def load_vaults() -> list[dict[str, str]]:
             data = yaml.safe_load(fh) or {}
     except (yaml.YAMLError, OSError):
         return []
-    vaults = data.get("vaults", [])
+    vaults = data.get("vaults") or []
     seen: set[str] = set()
     unique: list[dict[str, str]] = []
     for entry in vaults:
@@ -61,9 +77,16 @@ def save_vaults(vaults: list[dict[str, str]]) -> None:
         seen.add(abs_path)
         name = entry.get("name") or Path(abs_path).name
         unique.append({"name": name, "path": abs_path})
-    data = {"vaults": unique}
-    with open(CONFIG_FILE, "w", encoding="utf-8") as fh:
-        yaml.dump(data, fh, default_flow_style=False, sort_keys=False)
+    existing: dict = {}
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as fh:
+                existing = yaml.safe_load(fh) or {}
+        except (yaml.YAMLError, OSError):
+            existing = {}
+    existing["vaults"] = unique
+    yaml_str = yaml.dump(existing, default_flow_style=False, sort_keys=False)
+    _atomic_write(CONFIG_FILE, yaml_str)
 
 
 def add_vault(name: str, path: str) -> list[dict[str, str]]:
@@ -107,7 +130,7 @@ def load_settings() -> dict:
     except (yaml.YAMLError, OSError):
         return dict(_DEFAULT_SETTINGS)
     settings = dict(_DEFAULT_SETTINGS)
-    settings.update(data.get("settings", {}))
+    settings.update(data.get("settings") or {})
     return settings
 
 
@@ -122,5 +145,5 @@ def save_settings(settings: dict) -> None:
         except (yaml.YAMLError, OSError):
             existing = {}
     existing["settings"] = settings
-    with open(CONFIG_FILE, "w", encoding="utf-8") as fh:
-        yaml.dump(existing, fh, default_flow_style=False, sort_keys=False)
+    yaml_str = yaml.dump(existing, default_flow_style=False, sort_keys=False)
+    _atomic_write(CONFIG_FILE, yaml_str)

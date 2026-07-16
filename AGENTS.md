@@ -94,33 +94,19 @@ meson.build            — build system
 
 ## Dev commands
 
-### Test-Script (`scripts/test-app.sh`)
-**Zweck:** Sauberer Neustart der App mit PID-File-Management, Pattern-Fallback, Validierung.
-
 ```bash
-# Einfacher Aufruf (macht alles: kill alt + start neu + validieren)
-./scripts/test-app.sh
+# App starten (wie User es tut)
+gtk-launch de.hannemann.markdown-vault
 
-# Manuelle Schritte falls nötig:
-# 1. Prüfen ob läuft
-pgrep -f "src.main" && echo "LÄUFT" || echo "FREI"
-# 2. Kill über PID-File (bevorzugt) oder Pattern
-# 4. Start mit Validierung
-./scripts/test-app.sh
-# 5. Logs prüfen
-tail -5 tmp/mv-stderr.log
+# App beenden (sauber, wie X-Klick — Session wird gespeichert)
+killall markdown-vault
+
+# Falls App hängt und nicht auf SIGTERM reagiert:
+killall -9 markdown-vault
 ```
 
-**Was das Script tut:**
-1. **Kill:** Prüft `tmp/markdown-vault.pid` → wenn PID läuft → `kill` → nach 1s force `kill -9` → wartet auf Ende. Falls PID-File fehlt/kaputt → Pattern-Fallback (`pkill -f "python3 -m src.main"`).
-2. **Start:** `setsid python3 -m src.main >tmp/mv-stdout.log 2>tmp/mv-stderr.log & disown`, PID in `tmp/markdown-vault.pid` schreiben.
-3. **Validieren:** 2s warten → prüft Log auf `"main window presented"` → Exit-Code 0 bei Erfolg, 1 bei Fehler.
-4. **Logs:** Schreibt nach `tmp/mv-stdout.log` / `tmp/mv-stderr.log`, PID in `tmp/markdown-vault.pid`.
-
-**WICHTIG:** Vor jedem Test **immer** `./scripts/test-app.sh` nutzen — nie manuell `pkill` + `setsid` mixen. Verhindert verwaiste Prozesse, garantiert sauberen Neustart, Exit-Code für CI nutzbar. Danach eine Testanleitung für den User ausgeben und auf Feedback warten.
-
 ```bash
-# (NICHT killall python3 — das killt auch firewalld & andere System-Python-Prozesse!)
+# NICHT killall python3 — das killt auch firewalld & andere System-Python-Prozesse!
 
 # Install dependencies (openSUSE Tumbleweed)
 sudo zypper install python3-gobject python3-gobject-Gdk gtk4-devel gtk4-tools \
@@ -172,7 +158,6 @@ python3 -m unittest discover -s tests -v
 - **Exclusive during open**: While the switcher is shown, no other actions (editor typing, sidebar toggling, etc.) are possible — only Tab/Ctrl+Tab navigation and Escape to close.
 - **Alt+Tab behaviour**: Starts at MRU[1] (the previously active tab; MRU[0] is always the current tab), cycles forward with Tab, backward with Ctrl+Shift+Tab. Ctrl+release commits the selection and closes the dialog.
 - **MRU list**: Maintained by `MRUManager` in `src/mru.py`; rebuilt on every tab change (`_on_tab_changed` → `mru.push()`).
-- **Files**: `MRUManager` (business logic) and `MRUSwitcher` (UI only) live in `src/mru.py`. `MainWindow` delegates: `_mru_next`/`_mru_prev` call `mru.next()`/`mru.prev()`, `_show_mru_switcher` instantiates `MRUSwitcher` with `mru.list_for_switcher()`.
 - **No persistence**: The MRU list is in-memory only; it is rebuilt from session tab order on startup.
 - **Double-cycle prevention**: Application accelerators (`app.set_accels_for_action`) AND the switcher's key controller both handle Ctrl+Tab. `cycle_from_accelerator()` sets `_accel_handled` flag so the key controller skips the event. If only the key controller fires (no accelerator), it cycles normally.
 - **No ShortcutController in MRU mode**: `_update_tab_shortcuts()` skips registering shortcuts when `tab_switch_mode == "mru"` to avoid conflicts with application accelerators.

@@ -8,8 +8,8 @@ to light and dark mode.
 
 from pathlib import Path
 
-import base64
 import hashlib
+import json
 import markdown as md
 import re
 from markdown.extensions import Extension
@@ -57,8 +57,17 @@ HTML_TEMPLATE = """\
 </body>
 </html>"""
 
+def _wikilink_build_url(label: str, base: str, end: str) -> str:
+    """Build URL from wikilink label, preserving spaces (no underscore conversion)."""
+    return f"{base}{label}{end}"
+
+
 EXTENSION_CONFIGS = {
-    "markdown.extensions.wikilinks": {"base_url": ""},
+    "markdown.extensions.wikilinks": {
+        "base_url": "",
+        "end_url": "",
+        "build_url": _wikilink_build_url,
+    },
     "pymdownx.superfences": {
         "css_class": "codehilite",
     },
@@ -289,17 +298,20 @@ class Preview(Gtk.ScrolledWindow):
         if with_md.exists():
             return str(with_md.resolve())
 
-        # Search in vault roots
+        # Search in vault roots (try as-is first, then with underscores→spaces)
         stem = target.stem if name.endswith(".md") else name
-        for vp in self._vault_paths:
-            vault = _P(vp)
-            candidate = vault / f"{stem}.md"
-            if candidate.exists():
-                return str(candidate.resolve())
-            # Also check subdirectories
-            for md_file in vault.rglob("*.md"):
-                if md_file.stem == stem:
-                    return str(md_file.resolve())
+        candidates = [stem]
+        if "_" in stem:
+            candidates.append(stem.replace("_", " "))
+        for s in candidates:
+            for vp in self._vault_paths:
+                vault = _P(vp)
+                candidate = vault / f"{s}.md"
+                if candidate.exists():
+                    return str(candidate.resolve())
+                for md_file in vault.rglob("*.md"):
+                    if md_file.stem == s:
+                        return str(md_file.resolve())
 
         return None
 
@@ -343,14 +355,14 @@ class Preview(Gtk.ScrolledWindow):
             self._web_view.load_html(full_html, base_uri)
             self._loaded = True
         else:
-            encoded = base64.b64encode(html_content.encode()).decode()
+            html_json = json.dumps(html_content, ensure_ascii=False)
             js = (
                 'document.querySelector(".markdown-body").innerHTML '
-                f'= atob("{encoded}")'
+                f'= {html_json}'
             )
             GLib.idle_add(
                 self._web_view.evaluate_javascript,
-                js, len(js), None, None, None, None,
+                js, -1, None, None, None, None,
             )
 
     def scroll_to_line(self, line: int, text: str) -> None:
@@ -373,7 +385,7 @@ class Preview(Gtk.ScrolledWindow):
         js = f'document.getElementById("{slug}")?.scrollIntoView({{behavior:"smooth",block:"start"}});'
         GLib.idle_add(
             self._web_view.evaluate_javascript,
-            js, len(js), None, None, None, None,
+            js, -1, None, None, None, None,
         )
 
     @staticmethod
@@ -414,16 +426,16 @@ class Preview(Gtk.ScrolledWindow):
             return
         js = (
             "var s=document.documentElement.style;"
-            f's.setProperty("--bg","{colors["bg_color"]}")'
-            f's.setProperty("--fg","{colors["fg_color"]}")'
-            f's.setProperty("--accent","{colors["accent_color"]}")'
-            f's.setProperty("--dim","{colors["dim_color"]}")'
-            f's.setProperty("--card-bg","{colors["card_bg_color"]}")'
-            f's.setProperty("--borders","{colors["borders_color"]}")'
+            f's.setProperty("--bg","{colors["bg_color"]}");'
+            f's.setProperty("--fg","{colors["fg_color"]}");'
+            f's.setProperty("--accent","{colors["accent_color"]}");'
+            f's.setProperty("--dim","{colors["dim_color"]}");'
+            f's.setProperty("--card-bg","{colors["card_bg_color"]}");'
+            f's.setProperty("--borders","{colors["borders_color"]}");'
         )
         GLib.idle_add(
             self._web_view.evaluate_javascript,
-            js, len(js), None, None, None, None,
+            js, -1, None, None, None, None,
         )
 
     # ------------------------------------------------------------------

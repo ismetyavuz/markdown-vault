@@ -20,6 +20,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Gtk, GObject
 
 from . import git_integration, tags
+from .backlink_index import BacklinkIndex
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 
@@ -39,13 +40,14 @@ class Sidebar(Gtk.Box):
         "outline-clicked": (GObject.SignalFlags.RUN_LAST, None, (int,)),
     }
 
-    def __init__(self) -> None:
+    def __init__(self, backlink_index: BacklinkIndex | None = None) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.set_size_request(260, -1)
         self.set_visible(False)
 
         self._current_file: str | None = None
         self._vault_paths: list[str] = []
+        self._backlink_index = backlink_index or BacklinkIndex()
 
         # --- Sub-view stack ---
         self._stack = Gtk.Stack()
@@ -69,6 +71,11 @@ class Sidebar(Gtk.Box):
         self.append(switcher)
         self.append(self._stack)
 
+        # Lazy git refresh: load when user switches to Git tab.
+        self._stack.connect(
+            "notify::visible-child-name", self._on_stack_page_changed,
+        )
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -85,7 +92,8 @@ class Sidebar(Gtk.Box):
         self._current_file = file_path
         self._refresh_outline(text)
         self._refresh_backlinks(file_path)
-        self._refresh_git(file_path)
+        if self.get_visible() and self._stack.get_visible_child_name() == "git":
+            self._refresh_git(file_path)
         self._refresh_details(file_path, text)
 
     def update_text_only(self, file_path: str | None, text: str = "") -> None:
@@ -93,6 +101,11 @@ class Sidebar(Gtk.Box):
         self._current_file = file_path
         self._refresh_outline(text)
         self._refresh_details(file_path, text)
+
+    def _on_stack_page_changed(self, _stack, _pspec) -> None:
+        """Refresh git when the user switches to the Git tab."""
+        if self._stack.get_visible_child_name() == "git" and self._current_file:
+            self._refresh_git(self._current_file)
 
     # ------------------------------------------------------------------
     # Outline
@@ -125,14 +138,16 @@ class Sidebar(Gtk.Box):
     # ------------------------------------------------------------------
 
     def _refresh_backlinks(self, file_path: str | None) -> None:
-        """Populate the backlinks list."""
+        """Populate the backlinks list from the index."""
         self._clear_list(self._backlinks_list["list"])
         if not file_path or not self._vault_paths:
             self._backlinks_list["list"].append(
                 self._empty_label("Open a file to see backlinks")
             )
             return
-        backlinks = tags.find_backlinks(Path(file_path), self._vault_paths)
+        backlinks = [
+            Path(p) for p in self._backlink_index.find_backlinks(file_path)
+        ]
         if not backlinks:
             self._backlinks_list["list"].append(
                 self._empty_label("No backlinks found")
