@@ -180,6 +180,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._sidebar_paned.connect("notify::position", self._clamp_sidebar_position)
         self._search_paned.connect("notify::position", self._clamp_search_position)
 
+        self._search_paned.set_vexpand(True)
         root_box.append(self._search_paned)
 
         self._register_actions()
@@ -398,9 +399,9 @@ class MainWindow(Adw.ApplicationWindow):
         view_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
         group = None
         for mode, icon, tooltip in (
-            ("edit", "document-edit-symbolic", "Edit"),
-            ("render", "document-properties-symbolic", "Render"),
-            ("split", "view-dual-symbolic", "Split"),
+            ("edit",   "document-edit-symbolic",        "Edit (Ctrl+1)"),
+            ("split",  "view-dual-symbolic",            "Split (Ctrl+2)"),
+            ("render", "document-properties-symbolic",  "Preview (Ctrl+3)"),
         ):
             btn = Gtk.ToggleButton(icon_name=icon)
             btn.set_tooltip_text(tooltip)
@@ -548,6 +549,14 @@ class MainWindow(Adw.ApplicationWindow):
         action = Gio.SimpleAction.new("toggle-help", None)
         action.connect("activate", lambda *_: self._help_overlay.toggle())
         self.add_action(action)
+
+        for mode in ("edit", "split", "render"):
+            action = Gio.SimpleAction.new(f"view-{mode}", None)
+            action.connect(
+                "activate",
+                lambda _a, _p, m=mode: self._set_view_mode(m),
+            )
+            self.add_action(action)
 
         self._apply_keybindings()
 
@@ -764,6 +773,7 @@ class MainWindow(Adw.ApplicationWindow):
         split.set_start_child(editor)
         split.set_end_child(preview)
         split.set_position(split_position)
+        split.set_vexpand(True)
 
         banner_icon = Gtk.Image.new_from_icon_name("dialog-warning-symbolic")
         banner_icon.set_margin_end(6)
@@ -1206,6 +1216,15 @@ class MainWindow(Adw.ApplicationWindow):
         btn = self._view_toggle_buttons.get(mode)
         if btn:
             btn.set_active(True)
+
+    def _set_view_mode(self, mode: str) -> None:
+        """Switch the current tab's view mode (action callback)."""
+        tab = self._tab_bar.get_current_tab()
+        if not tab:
+            return
+        tab.view_mode = mode
+        self._sync_view_toggle(mode)
+        self._apply_view_mode()
 
     # ── Editor callbacks ────────────────────────────────────────────
 
