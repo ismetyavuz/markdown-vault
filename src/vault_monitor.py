@@ -220,7 +220,7 @@ class VaultMonitor:
             try:
                 monitor.cancel()
             except Exception:
-                pass
+                logger.warning("Failed to cancel monitor for %s", vault_path, exc_info=True)
 
     def _stop_all_monitors(self):
         """Entfernt alle FileMonitore."""

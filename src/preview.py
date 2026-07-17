@@ -10,6 +10,7 @@ from pathlib import Path
 
 import hashlib
 import json
+import logging
 import markdown as md
 import re
 from markdown.extensions import Extension
@@ -27,6 +28,8 @@ from gi.repository import Gtk, Adw, WebKit, GObject, Gdk, GLib
 
 
 import unicodedata
+
+logger = logging.getLogger(__name__)
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 
@@ -486,4 +489,5 @@ class Preview(Gtk.ScrolledWindow):
             css_file = importlib.resources.files("data").joinpath("css/style.css")
             return css_file.read_text(encoding="utf-8")
         except Exception:
+            logger.warning("Could not load CSS from data package", exc_info=True)
             return ""

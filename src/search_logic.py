@@ -3,10 +3,13 @@
 Pure Python functions for querying vault directories. No GTK dependencies.
 """
 
+import logging
 import os
 import re
 from datetime import datetime
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def search_vaults(
@@ -39,6 +42,7 @@ def search_vaults(
                                 if len(results) >= max_results:
                                     return results
                 except OSError:
+                    logger.debug("Cannot read %s during search", fpath, exc_info=True)
                     continue
 
     return results
@@ -74,6 +78,7 @@ def compute_file_details(
     try:
         stat = p.stat()
     except OSError:
+        logger.debug("Cannot stat %s for metadata", file_path, exc_info=True)
         return {
             "word_count": 0,
             "line_count": 0,

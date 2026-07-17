@@ -5,8 +5,11 @@ to fail silently — when a directory is not a git repository or when
 git is not installed, callers receive empty results rather than exceptions.
 """
 
+import logging
 import subprocess
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def _run_git(args: list[str], cwd: str | Path) -> tuple[int, str, str]:
@@ -25,8 +28,10 @@ def _run_git(args: list[str], cwd: str | Path) -> tuple[int, str, str]:
         )
         return result.returncode, result.stdout, result.stderr
     except FileNotFoundError:
+        logger.warning("git not found in PATH")
         return -1, "", "git not found"
     except subprocess.TimeoutExpired:
+        logger.warning("git command timed out: %s", args)
         return -1, "", "git timed out"
 
 
@@ -110,6 +115,8 @@ def get_log(path: str | Path, max_count: int = 20) -> list[dict[str, str]]:
 def commit(path: str | Path, message: str) -> tuple[bool, str]:
     """Commit all staged changes.  Returns ``(success, output)``."""
     code, stdout, stderr = _run_git(["commit", "-m", message], cwd=path)
+    if code != 0:
+        logger.warning("git commit failed in %s: %s", path, stderr or stdout)
     return code == 0, stderr or stdout
 
 

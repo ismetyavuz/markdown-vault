@@ -5,6 +5,8 @@ such as autosave interval, editor appearance, and default view mode.
 Changes are applied immediately and persisted to ``vaults.yaml``.
 """
 
+import logging
+
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -16,6 +18,13 @@ from gi.repository import Gtk, Adw, GObject, Gdk
 from . import config
 
 _VIEW_MODES = {"edit": "Edit", "render": "Render", "split": "Split"}
+_LOGLEVELS = {"debug": "Debug", "info": "Info", "warning": "Warning", "error": "Error"}
+_LOGLEVEL_MAP = {
+    "debug": logging.DEBUG,
+    "info": logging.INFO,
+    "warning": logging.WARNING,
+    "error": logging.ERROR,
+}
 
 
 def _accel_to_label(accel: str) -> str:
@@ -184,6 +193,38 @@ class PreferencesDialog(Adw.PreferencesDialog):
 
         self.add(keyboard)
 
+        # ── Debug page ──────────────────────────────────────────────
+        debug = Adw.PreferencesPage(title="Debug", icon_name="utilities-system-monitor-symbolic")
+
+        log_group = Adw.PreferencesGroup(title="Logging")
+        debug.add(log_group)
+
+        self._loglevel_row = Adw.ComboRow(
+            title="Log level",
+            model=Gtk.StringList.new(list(_LOGLEVELS.values())),
+        )
+        current_level = self._settings.get("loglevel", "info")
+        levels = list(_LOGLEVELS.keys())
+        self._loglevel_row.set_selected(
+            levels.index(current_level) if current_level in levels else 1
+        )
+        self._loglevel_row.connect("notify::selected", self._on_loglevel_changed)
+        log_group.add(self._loglevel_row)
+
+        self._tp_loglevel_row = Adw.ComboRow(
+            title="Third-party log level",
+            subtitle="markdown, pymdownx, pygments, xml",
+            model=Gtk.StringList.new(list(_LOGLEVELS.values())),
+        )
+        tp_level = self._settings.get("third_party_loglevel", "warning")
+        self._tp_loglevel_row.set_selected(
+            levels.index(tp_level) if tp_level in levels else 2
+        )
+        self._tp_loglevel_row.connect("notify::selected", self._on_tp_loglevel_changed)
+        log_group.add(self._tp_loglevel_row)
+
+        self.add(debug)
+
     # ── Handlers ────────────────────────────────────────────────────
 
     def _persist(self) -> None:
@@ -274,3 +315,20 @@ class PreferencesDialog(Adw.PreferencesDialog):
     def _on_tab_switch_mode_changed(self, row: Adw.ComboRow, _pspec) -> None:
         self._settings["tab_switch_mode"] = "mru" if row.get_selected() == 0 else "cycle"
         self._persist()
+
+    def _on_loglevel_changed(self, row: Adw.ComboRow, _pspec) -> None:
+        levels = list(_LOGLEVELS.keys())
+        idx = row.get_selected()
+        if idx < len(levels):
+            self._settings["loglevel"] = levels[idx]
+            self._persist()
+            logging.getLogger().setLevel(_LOGLEVEL_MAP[levels[idx]])
+
+    def _on_tp_loglevel_changed(self, row: Adw.ComboRow, _pspec) -> None:
+        from .main import set_third_party_loglevel
+        levels = list(_LOGLEVELS.keys())
+        idx = row.get_selected()
+        if idx < len(levels):
+            self._settings["third_party_loglevel"] = levels[idx]
+            self._persist()
+            set_third_party_loglevel(levels[idx])

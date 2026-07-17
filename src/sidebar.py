@@ -8,6 +8,7 @@ Provides four switchable sub-views:
 * **Details** — file metadata (path, word count, size, last modified).
 """
 
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
@@ -21,6 +22,8 @@ from gi.repository import Gtk, GObject
 
 from . import git_integration, tags
 from .backlink_index import BacklinkIndex
+
+logger = logging.getLogger(__name__)
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 
@@ -261,6 +264,7 @@ class Sidebar(Gtk.Box):
         try:
             stat = p.stat()
         except OSError:
+            logger.warning("Cannot stat file: %s", file_path, exc_info=True)
             self._details_label.set_text("Cannot read file info")
             return
         word_count = len(text.split()) if text else 0

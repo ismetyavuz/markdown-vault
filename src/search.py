@@ -9,6 +9,7 @@ vaults.  Results are delivered back to the main thread via
 ``GLib.idle_add``.
 """
 
+import logging
 import threading
 from pathlib import Path
 
@@ -20,6 +21,8 @@ gi.require_version("Adw", "1")
 from gi.repository import Gtk, GObject, GLib
 
 from . import search_logic
+
+logger = logging.getLogger(__name__)
 
 
 class SearchBar(Gtk.Box):

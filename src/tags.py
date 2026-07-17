@@ -5,9 +5,12 @@ links from Markdown text, resolve them to concrete files, and find
 all files that link *to* a given target.
 """
 
+import logging
 import os
 import re
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 WIKILINK_RE = re.compile(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
 
@@ -68,6 +71,7 @@ def find_backlinks(target_file: Path, vault_paths: list[str]) -> list[Path]:
                 try:
                     text = fpath.read_text(encoding="utf-8")
                 except (OSError, UnicodeDecodeError):
+                    logger.debug("Cannot read %s for backlink scan", fpath, exc_info=True)
                     continue
                 for page, _alias in parse_wikilinks(text):
                     if page == target_stem:

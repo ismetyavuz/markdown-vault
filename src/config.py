@@ -6,14 +6,22 @@ absolute form on load and save to avoid duplicates that differ only
 by relative path notation.
 """
 
+import logging
 import os
 import tempfile
 from pathlib import Path
 
 import yaml
 
+logger = logging.getLogger(__name__)
+
 CONFIG_DIR = Path.home() / ".config" / "markdown-vault"
 CONFIG_FILE = CONFIG_DIR / "vaults.yaml"
+
+STATE_DIR = Path(
+    os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local" / "state"))
+) / "markdown-vault"
+LOG_FILE = STATE_DIR / "markdown-vault.log"
 
 
 def _ensure_config_dir() -> None:
@@ -43,11 +51,13 @@ def load_vaults() -> list[dict[str, str]]:
     absolute.  Duplicate paths are silently discarded (first wins).
     """
     if not CONFIG_FILE.exists():
+        logger.debug("No config file found, returning empty vault list")
         return []
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as fh:
             data = yaml.safe_load(fh) or {}
-    except (yaml.YAMLError, OSError):
+    except (yaml.YAMLError, OSError) as exc:
+        logger.warning("Failed to parse config file %s: %s", CONFIG_FILE, exc)
         return []
     vaults = data.get("vaults") or []
     seen: set[str] = set()
@@ -58,10 +68,12 @@ def load_vaults() -> list[dict[str, str]]:
             continue
         abs_path = os.path.abspath(raw_path)
         if abs_path in seen:
+            logger.debug("Skipping duplicate vault path: %s", abs_path)
             continue
         seen.add(abs_path)
         name = entry.get("name") or Path(abs_path).name
         unique.append({"name": name, "path": abs_path})
+    logger.debug("Loaded %d vault(s) from config", len(unique))
     return unique
 
 
@@ -87,6 +99,7 @@ def save_vaults(vaults: list[dict[str, str]]) -> None:
     existing["vaults"] = unique
     yaml_str = yaml.dump(existing, default_flow_style=False, sort_keys=False)
     _atomic_write(CONFIG_FILE, yaml_str)
+    logger.debug("Saved %d vault(s) to config", len(unique))
 
 
 def add_vault(name: str, path: str) -> list[dict[str, str]]:
@@ -94,6 +107,7 @@ def add_vault(name: str, path: str) -> list[dict[str, str]]:
     vaults = load_vaults()
     vaults.append({"name": name, "path": os.path.abspath(path)})
     save_vaults(vaults)
+    logger.info("Vault added: %s (%s)", name, path)
     return load_vaults()
 
 
@@ -102,6 +116,7 @@ def remove_vault(path: str) -> list[dict[str, str]]:
     abs_path = os.path.abspath(path)
     vaults = [v for v in load_vaults() if v["path"] != abs_path]
     save_vaults(vaults)
+    logger.info("Vault removed: %s", path)
     return load_vaults()
 
 
@@ -117,20 +132,26 @@ _DEFAULT_SETTINGS = {
     "keybinding_next_tab": "<Control>Tab",
     "keybinding_prev_tab": "<Shift><Control>Tab",
     "tab_switch_mode": "mru",
+    "loglevel": "info",
+    "third_party_loglevel": "warning",
 }
 
 
 def load_settings() -> dict:
     """Load app settings from vaults.yaml, with safe defaults."""
     if not CONFIG_FILE.exists():
+        logger.debug("No config file, using default settings")
         return dict(_DEFAULT_SETTINGS)
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as fh:
             data = yaml.safe_load(fh) or {}
-    except (yaml.YAMLError, OSError):
+    except (yaml.YAMLError, OSError) as exc:
+        logger.warning("Failed to parse config for settings: %s", exc)
         return dict(_DEFAULT_SETTINGS)
     settings = dict(_DEFAULT_SETTINGS)
     settings.update(data.get("settings") or {})
+    logger.debug("Loaded settings: %s", {k: v for k, v in settings.items()
+                                          if k != "loglevel"})
     return settings
 
 

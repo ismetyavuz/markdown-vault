@@ -7,6 +7,7 @@ Provides:
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Callable
 
@@ -16,6 +17,8 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
 from gi.repository import Gtk, Adw, Gdk
+
+logger = logging.getLogger(__name__)
 
 
 class MRUManager:

@@ -51,6 +51,7 @@ class BacklinkIndex:
                     try:
                         text = Path(fpath).read_text(encoding="utf-8")
                     except (OSError, UnicodeDecodeError):
+                        logger.debug("Cannot read %s for indexing", fpath, exc_info=True)
                         continue
                     self._index_file(fpath, text)
 

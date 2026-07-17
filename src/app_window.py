@@ -36,6 +36,8 @@ from . import path_utils
 from . import vault_monitor
 from .backlink_index import BacklinkIndex
 
+logger = logging.getLogger(__name__)
+
 
 def _load_gtk_css() -> None:
     """Load GTK CSS for tab bar and other widgets."""
@@ -878,7 +880,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_editor_modified(self, editor: Editor, dirty: bool) -> None:
         """Update the italic indicator on the tab for *dirty*."""
-        logging.debug("_on_editor_modified: path=%s dirty=%s",
+        logger.debug("_on_editor_modified: path=%s dirty=%s",
                       editor.file_path, dirty)
         if editor.file_path:
             self._tab_bar._set_tab_unmodified(editor.file_path, dirty)

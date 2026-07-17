@@ -470,6 +470,7 @@ class VaultTree(Gtk.Box):
         try:
             os.rename(old_path, new_path)
         except OSError:
+            logger.warning("Failed to rename %s → %s", old_path, new_path, exc_info=True)
             return
 
         # Update the tree store.
@@ -510,6 +511,7 @@ class VaultTree(Gtk.Box):
         try:
             entries = sorted(path.iterdir(), key=lambda e: (not e.is_dir(), e.name.lower()))
         except OSError:
+            logger.warning("Could not list directory: %s", path, exc_info=True)
             return
         for entry in entries:
             if entry.name.startswith("."):
@@ -587,6 +589,7 @@ class VaultTree(Gtk.Box):
             import shutil
             shutil.move(source_path, dest_path)
         except OSError:
+            logger.warning("Failed to move %s → %s", source_path, dest_path, exc_info=True)
             return False
 
         # Update the tree store.
@@ -778,6 +781,7 @@ class VaultTree(Gtk.Box):
         try:
             folder = dialog.select_folder_finish(result)
         except GLib.Error:
+            logger.debug("Folder chooser cancelled or failed", exc_info=True)
             return
         if folder:
             path = folder.get_path()
