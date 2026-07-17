@@ -123,6 +123,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._vault_monitor.connect("external-file-deleted", self._on_monitor_file_deleted)
         self._vault_monitor.connect("external-file-moved", self._on_monitor_file_moved)
         self._vault_monitor.connect("external-content-changed", self._on_monitor_content_changed)
+        self._vault_tree.vault_monitor = self._vault_monitor
         self._main_paned.set_start_child(self._vault_tree)
         self._main_paned.set_resize_start_child(False)
         self._main_paned.set_shrink_start_child(False)
@@ -629,6 +630,8 @@ class MainWindow(Adw.ApplicationWindow):
         if not name.endswith(".md"):
             name += ".md"
         file_path = os.path.join(default_dir, name)
+        self._vault_monitor.skip_next_event(file_path)
+        self._vault_monitor.skip_next_event(file_path)
         try:
             Path(file_path).touch()
         except OSError as e:

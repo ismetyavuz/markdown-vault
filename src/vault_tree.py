@@ -464,6 +464,9 @@ class VaultTree(Gtk.Box):
         new_path = os.path.join(parent_dir, new_name)
 
         # Perform filesystem rename.
+        if hasattr(self, "vault_monitor") and self.vault_monitor:
+            self.vault_monitor.skip_next_event(old_path)
+            self.vault_monitor.skip_next_event(new_path)
         try:
             os.rename(old_path, new_path)
         except OSError:
@@ -577,6 +580,9 @@ class VaultTree(Gtk.Box):
         source_name = Path(source_path).name
         dest_path = os.path.join(target_dir, source_name)
 
+        if hasattr(self, "vault_monitor") and self.vault_monitor:
+            self.vault_monitor.skip_next_event(source_path)
+            self.vault_monitor.skip_next_event(dest_path)
         try:
             import shutil
             shutil.move(source_path, dest_path)

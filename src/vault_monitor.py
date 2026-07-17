@@ -117,7 +117,7 @@ class VaultMonitor:
         self._monitors = {}  # {vault_path: Gio.FileMonitor}
         self._vault_paths = []  # Liste der aktuell ue berwachten Pfade
         self._debounce_timers = {}  # {event_key: GLib.Source}
-        self._skip_paths = set()  # Pfade whose naechstes Changed-Event ignoriert wird
+        self._skip_paths: dict[str, int] = {}  # Pfad → verbleibende Skipping
 
         # Signale: (signal_name, callback)
         self._callbacks = {}
@@ -168,12 +168,12 @@ class VaultMonitor:
         self._vault_paths = list(vault_paths)
 
     def skip_next_event(self, file_path: str) -> None:
-        """Markiere einen Pfad fuer das Ignorieren des naechsten Changed-Events.
+        """Markiere einen Pfad fuer das Ignorieren des naechsten Events.
 
         Wird vor dem internen Speichern aufgerufen, damit der eigene
         File-Monitor nicht als externe Aenderung interpretiert wird.
         """
-        self._skip_paths.add(file_path)
+        self._skip_paths[file_path] = self._skip_paths.get(file_path, 0) + 1
 
     def _start_monitor(self, vault_path):
         """Startet einen FileMonitor fuer ein Vault-Verzeichnis.
@@ -331,6 +331,14 @@ class VaultMonitor:
         for key in list(self._debounce_timers.keys()):
             self._cancel_debounce_timer(key)
 
+    def _decrement_skip(self, file_path: str) -> None:
+        """Decrement skip counter; remove entry when exhausted."""
+        count = self._skip_paths.get(file_path, 0)
+        if count <= 1:
+            self._skip_paths.pop(file_path, None)
+        else:
+            self._skip_paths[file_path] = count - 1
+
     def _emit_event(self, vault_path, file_path, other_path, event_type):
         """Ermittelt das Signal und ruft alle verbundenen Callbacks auf.
 
@@ -344,8 +352,13 @@ class VaultMonitor:
         if not signal_name:
             return
 
-        if event_type == "changed" and file_path in self._skip_paths:
-            self._skip_paths.discard(file_path)
+        if event_type == "moved" and other_path is not None:
+            if file_path in self._skip_paths or other_path in self._skip_paths:
+                self._decrement_skip(file_path)
+                self._decrement_skip(other_path)
+                return
+        elif event_type in ("changed", "created") and file_path in self._skip_paths:
+            self._decrement_skip(file_path)
             return
 
         for (sig, cb), callback in self._callbacks.items():
