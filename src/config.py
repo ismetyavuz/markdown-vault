@@ -29,6 +29,30 @@ def _ensure_config_dir() -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def check_config_access() -> None:
+    """Raise OSError if the config file/directory is not accessible.
+
+    Called before opening Preferences to fail fast with a user-visible
+    error dialog instead of silently falling back to defaults.
+    """
+    try:
+        if not CONFIG_FILE.exists():
+            # No config yet (first run) — directory must be writable.
+            if not os.access(str(CONFIG_DIR), os.W_OK | os.X_OK):
+                raise OSError(f"Cannot write to {CONFIG_DIR}")
+            return
+        # File exists — must be readable AND writable.
+        with open(CONFIG_FILE, "r") as fh:
+            fh.read()
+        if not os.access(str(CONFIG_FILE), os.W_OK):
+            raise OSError(f"Cannot write to {CONFIG_FILE}")
+    except OSError:
+        raise OSError(
+            f"Configuration is not accessible.\n"
+            f"Check permissions on {CONFIG_DIR}"
+        )
+
+
 def _atomic_write(path: Path, content: str) -> None:
     """Atomically write *content* to *path* via temp file + replace."""
     fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
@@ -50,10 +74,10 @@ def load_vaults() -> list[dict[str, str]]:
     Each entry is ``{"name": str, "path": str}`` where *path* is always
     absolute.  Duplicate paths are silently discarded (first wins).
     """
-    if not CONFIG_FILE.exists():
-        logger.debug("No config file found, returning empty vault list")
-        return []
     try:
+        if not CONFIG_FILE.exists():
+            logger.debug("No config file found, returning empty vault list")
+            return []
         with open(CONFIG_FILE, "r", encoding="utf-8") as fh:
             data = yaml.safe_load(fh) or {}
     except (yaml.YAMLError, OSError) as exc:
@@ -98,7 +122,11 @@ def save_vaults(vaults: list[dict[str, str]]) -> None:
             existing = {}
     existing["vaults"] = unique
     yaml_str = yaml.dump(existing, default_flow_style=False, sort_keys=False)
-    _atomic_write(CONFIG_FILE, yaml_str)
+    try:
+        _atomic_write(CONFIG_FILE, yaml_str)
+    except OSError:
+        logger.error("Failed to save vaults to %s", CONFIG_FILE, exc_info=True)
+        raise
     logger.debug("Saved %d vault(s) to config", len(unique))
 
 
@@ -139,10 +167,10 @@ _DEFAULT_SETTINGS = {
 
 def load_settings() -> dict:
     """Load app settings from vaults.yaml, with safe defaults."""
-    if not CONFIG_FILE.exists():
-        logger.debug("No config file, using default settings")
-        return dict(_DEFAULT_SETTINGS)
     try:
+        if not CONFIG_FILE.exists():
+            logger.debug("No config file, using default settings")
+            return dict(_DEFAULT_SETTINGS)
         with open(CONFIG_FILE, "r", encoding="utf-8") as fh:
             data = yaml.safe_load(fh) or {}
     except (yaml.YAMLError, OSError) as exc:
@@ -167,4 +195,8 @@ def save_settings(settings: dict) -> None:
             existing = {}
     existing["settings"] = settings
     yaml_str = yaml.dump(existing, default_flow_style=False, sort_keys=False)
-    _atomic_write(CONFIG_FILE, yaml_str)
+    try:
+        _atomic_write(CONFIG_FILE, yaml_str)
+    except OSError:
+        logger.error("Failed to save settings to %s", CONFIG_FILE, exc_info=True)
+        raise

@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from gi.repository import GLib
 from src.sidebar import Sidebar
 
 
@@ -129,9 +130,14 @@ class TestSidebarGit(unittest.TestCase):
         self.assertEqual(self.sidebar._git_status_label.get_text(), "No file open")
 
     def test_refresh_git_not_a_repo(self):
-        import tempfile
+        import tempfile, time
         with tempfile.TemporaryDirectory() as tmpdir:
             self.sidebar._refresh_git(tmpdir + "/file.md")
+            time.sleep(0.2)
+            # Process pending GLib idle callbacks (no main loop in tests)
+            ctx = GLib.MainContext.default()
+            while ctx.pending():
+                ctx.iteration(False)
             self.assertEqual(self.sidebar._git_status_label.get_text(), "Not a git repository")
 
 

@@ -15,7 +15,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 gi.require_version("Pango", "1.0")
 
-from gi.repository import Gtk, GLib, GObject, Pango, Gio, Gdk
+from gi.repository import Gtk, Adw, GLib, GObject, Pango, Gio, Gdk
 
 from . import validation
 
@@ -791,5 +791,11 @@ class VaultTree(Gtk.Box):
                 # Persist the new vault.
                 from . import config
 
-                config.add_vault(Path(path).name, path)
+                try:
+                    config.add_vault(Path(path).name, path)
+                except OSError as e:
+                    dialog = Adw.AlertDialog(heading="Save Failed", body=str(e))
+                    dialog.add_response("ok", "OK")
+                    dialog.present(self.get_root())
+                    return
                 self.emit("vault-added", path)

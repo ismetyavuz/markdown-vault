@@ -228,7 +228,15 @@ class PreferencesDialog(Adw.PreferencesDialog):
     # ── Handlers ────────────────────────────────────────────────────
 
     def _persist(self) -> None:
-        config.save_settings(self._settings)
+        try:
+            config.save_settings(self._settings)
+        except OSError as e:
+            import logging
+            logging.getLogger(__name__).error("Failed to save settings: %s", e)
+            dialog = Adw.AlertDialog(heading="Save Failed", body=str(e))
+            dialog.add_response("ok", "OK")
+            dialog.present(self.get_root())
+            return
         self.emit("settings-changed")
 
     def _on_autosave_changed(self, spin: Gtk.SpinButton) -> None:

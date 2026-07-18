@@ -10,6 +10,7 @@ Provides four switchable sub-views:
 
 import logging
 import re
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -18,7 +19,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
-from gi.repository import Gtk, GObject
+from gi.repository import Gtk, GLib, GObject
 
 from . import git_integration, tags
 from .backlink_index import BacklinkIndex
@@ -51,10 +52,12 @@ class Sidebar(Gtk.Box):
         self._current_file: str | None = None
         self._vault_paths: list[str] = []
         self._backlink_index = backlink_index or BacklinkIndex()
+        self._git_generation: int = 0
 
         # --- Sub-view stack ---
         self._stack = Gtk.Stack()
         self._stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self._stack.set_vexpand(True)
 
         self._outline_list = self._make_scrollable_list()
         self._stack.add_titled(self._outline_list["parent"], "outline", "Outline")
@@ -197,7 +200,7 @@ class Sidebar(Gtk.Box):
     # Git
     # ------------------------------------------------------------------
 
-    def _build_git_page(self) -> Gtk.Box:
+    def _build_git_page(self) -> Gtk.ScrolledWindow:
         """Create the git status / diff sub-view."""
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         box.set_margin_top(8)
@@ -215,33 +218,61 @@ class Sidebar(Gtk.Box):
         self._git_diff_label.add_css_class("mono")
         box.append(self._git_diff_label)
 
-        return box
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_child(box)
+        scrolled.set_vexpand(True)
+        return scrolled
 
     def _refresh_git(self, file_path: str | None) -> None:
-        """Update the git sub-view for the file's repository."""
+        """Update the git sub-view for the file's repository (async)."""
         if not file_path:
             self._git_status_label.set_text("No file open")
             self._git_diff_label.set_text("")
             return
         repo_dir = Path(file_path).parent
-        if not git_integration.is_git_repo(repo_dir):
-            self._git_status_label.set_text("Not a git repository")
-            self._git_diff_label.set_text("")
-            return
-        status = git_integration.get_status(repo_dir)
-        if status:
-            lines = [f"{e['status']}  {e['path']}" for e in status]
-            self._git_status_label.set_text("\n".join(lines))
-        else:
-            self._git_status_label.set_text("Working tree clean")
-        diff = git_integration.get_diff(repo_dir)
-        self._git_diff_label.set_text(diff[:2000] if diff else "")
+        self._git_generation += 1
+        gen = self._git_generation
+        status_label = self._git_status_label
+        diff_label = self._git_diff_label
+
+        def _work():
+            if not git_integration.is_git_repo(repo_dir):
+                return gen, False, "", ""
+            status = git_integration.get_status(repo_dir)
+            diff = git_integration.get_diff(repo_dir)
+            return gen, True, status, diff
+
+        def _apply(res):
+            g, is_repo, status, diff = res
+            if g != self._git_generation:
+                return False
+            if not is_repo:
+                status_label.set_text("Not a git repository")
+                diff_label.set_text("")
+            elif status:
+                lines = [f"{e['status']}  {e['path']}" for e in status]
+                status_label.set_text("\n".join(lines))
+                diff_label.set_text(diff[:2000] if diff else "")
+            else:
+                status_label.set_text("Working tree clean")
+                diff_label.set_text(diff[:2000] if diff else "")
+            return False
+
+        def _run():
+            try:
+                res = _work()
+            except Exception:
+                logger.warning("Git worker exception", exc_info=True)
+                return
+            GLib.idle_add(_apply, res)
+
+        threading.Thread(target=_run, daemon=True).start()
 
     # ------------------------------------------------------------------
     # Details
     # ------------------------------------------------------------------
 
-    def _build_details_page(self) -> Gtk.Box:
+    def _build_details_page(self) -> Gtk.ScrolledWindow:
         """Create the file-details sub-view."""
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         box.set_margin_top(8)
@@ -253,7 +284,10 @@ class Sidebar(Gtk.Box):
         self._details_label.set_wrap(True)
         box.append(self._details_label)
 
-        return box
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_child(box)
+        scrolled.set_vexpand(True)
+        return scrolled
 
     def _refresh_details(self, file_path: str | None, text: str) -> None:
         """Update file metadata display."""

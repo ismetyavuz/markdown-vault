@@ -884,6 +884,8 @@ class MainWindow(Adw.ApplicationWindow):
                       editor.file_path, dirty)
         if editor.file_path:
             self._tab_bar._set_tab_unmodified(editor.file_path, dirty)
+        if not dirty and self._sidebar.get_visible():
+            self._sidebar._refresh_git(editor.file_path)
 
     def _on_tab_closed(self, _tab_bar, file_path: str) -> None:
         self.mru.remove(file_path)
@@ -1402,6 +1404,7 @@ class MainWindow(Adw.ApplicationWindow):
         if self._preview_debounce_id is not None:
             GLib.source_remove(self._preview_debounce_id)
             self._preview_debounce_id = None
+        self._vault_monitor.cleanup()
         self._save_session()
         return False  # Allow the close to proceed.
 
@@ -1445,6 +1448,11 @@ class MainWindow(Adw.ApplicationWindow):
     # ── Preferences ────────────────────────────────────────────────
 
     def _open_preferences(self) -> None:
+        try:
+            config.check_config_access()
+        except OSError as e:
+            self._show_error("Cannot Open Preferences", str(e))
+            return
         dlg = PreferencesDialog()
         dlg.connect("settings-changed", self._on_preferences_changed)
         dlg.present(self)
@@ -1575,11 +1583,14 @@ class MainWindow(Adw.ApplicationWindow):
         self._vault_tree._handle_file_created(vault_path, file_path)
         if not file_path.endswith(".md"):
             return
-        try:
-            text = Path(file_path).read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            text = ""
-        self._backlink_index.update_file(file_path, text)
+        def _update_backlink():
+            try:
+                text = Path(file_path).read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                text = ""
+            self._backlink_index.update_file(file_path, text)
+            return False
+        GLib.idle_add(_update_backlink)
 
     def _on_monitor_file_deleted(self, vault_path: str, file_path: str) -> None:
         """Handle file deleted event from VaultMonitor."""
@@ -1608,20 +1619,26 @@ class MainWindow(Adw.ApplicationWindow):
         else:
             self._vault_tree._handle_file_created(vault_path, file_path)
             if file_path.endswith(".md"):
-                try:
-                    text = Path(file_path).read_text(encoding="utf-8")
-                except (OSError, UnicodeDecodeError):
-                    text = ""
-                self._backlink_index.update_file(file_path, text)
+                def _update_backlink():
+                    try:
+                        text = Path(file_path).read_text(encoding="utf-8")
+                    except (OSError, UnicodeDecodeError):
+                        text = ""
+                    self._backlink_index.update_file(file_path, text)
+                    return False
+                GLib.idle_add(_update_backlink)
 
     def _on_monitor_content_changed(self, vault_path: str, file_path: str) -> None:
         """Handle content-changed event from VaultMonitor."""
-        try:
-            text = Path(file_path).read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            text = ""
-        self._backlink_index.update_file(file_path, text)
-        self._on_external_content_changed(file_path)
+        def _update():
+            try:
+                text = Path(file_path).read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                text = ""
+            self._backlink_index.update_file(file_path, text)
+            self._on_external_content_changed(file_path)
+            return False
+        GLib.idle_add(_update)
 
     # ── AppWindow alias (for tests) ────────────────────────────────
 

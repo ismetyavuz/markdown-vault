@@ -34,13 +34,16 @@ logger = logging.getLogger(__name__)
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 
 
-def _heading_to_slug(heading: str, seen: dict[str, int] | None = None) -> str:
+def _heading_to_slug(heading: str, seen: dict[str, int] | None = None,
+                     unicode: bool = True) -> str:
     """Convert a heading text to a slug matching the toc extension's output.
 
     The toc extension lowercases, removes punctuation, replaces spaces with
     hyphens, and appends _1, _2 for duplicates.
     """
     value = unicodedata.normalize("NFKD", heading)
+    if not unicode:
+        value = re.sub(r"[^\x00-\x7F]", "", value)
     value = re.sub(r"[^\w\s-]", "", value).strip()
     value = re.sub(r"[-\s]+", "-", value)
     base_slug = value.lower()
@@ -242,6 +245,7 @@ class Preview(Gtk.ScrolledWindow):
 
         web_settings = self._web_view.get_settings()
         web_settings.set_enable_javascript(True)
+        web_settings.set_enable_javascript_markup(False)
         web_settings.set_allow_file_access_from_file_urls(False)
 
         self._web_view.connect("decide-policy", self._on_decide_policy)
@@ -410,7 +414,7 @@ class Preview(Gtk.ScrolledWindow):
             heading_line = text[:m.start()].count("\n")
             heading_text = m.group(2)
             # Compute slug and update counter (matches toc behavior)
-            slug = _heading_to_slug(heading_text, seen)
+            slug = _heading_to_slug(heading_text, seen, unicode=False)
             if heading_line <= line:
                 target_slug = slug
             else:

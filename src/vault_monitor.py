@@ -6,6 +6,7 @@ Only monitors .md files. Uses CHANGES_DONE_HINT for content-changed events.
 
 import logging
 import os
+import time
 from pathlib import Path
 
 import gi
@@ -121,6 +122,7 @@ class VaultMonitor:
         self._vault_paths = []  # Liste der aktuell ue berwachten Pfade
         self._debounce_timers = {}  # {event_key: GLib.Source}
         self._skip_paths: dict[str, int] = {}  # Pfad → verbleibende Skipping
+        self._skip_timestamps: dict[str, float] = {}  # Pfad → Zeitstempel
 
         # Signale: (signal_name, callback)
         self._callbacks = {}
@@ -179,6 +181,7 @@ class VaultMonitor:
         File-Monitor nicht als externe Aenderung interpretiert wird.
         """
         self._skip_paths[file_path] = self._skip_paths.get(file_path, 0) + 1
+        self._skip_timestamps[file_path] = time.monotonic()
 
     def _start_monitor(self, vault_path):
         """Startet einen FileMonitor fuer ein Vault-Verzeichnis.
@@ -384,10 +387,16 @@ class VaultMonitor:
             self._cancel_debounce_timer(key)
 
     def _decrement_skip(self, file_path: str) -> None:
-        """Decrement skip counter; remove entry when exhausted."""
+        """Decrement skip counter; remove entry when exhausted or stale."""
+        ts = self._skip_timestamps.get(file_path, 0.0)
+        if time.monotonic() - ts > 2.0:
+            self._skip_paths.pop(file_path, None)
+            self._skip_timestamps.pop(file_path, None)
+            return
         count = self._skip_paths.get(file_path, 0)
         if count <= 1:
             self._skip_paths.pop(file_path, None)
+            self._skip_timestamps.pop(file_path, None)
         else:
             self._skip_paths[file_path] = count - 1
 

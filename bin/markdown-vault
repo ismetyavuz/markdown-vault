@@ -4,9 +4,15 @@
 import sys
 from pathlib import Path
 
-import setproctitle
-
-setproctitle.setproctitle("markdown-vault")
+try:
+    import setproctitle
+    setproctitle.setproctitle("markdown-vault")
+except ImportError:
+    try:
+        with open("/proc/self/comm", "w") as f:
+            f.write("markdown-vault\n")
+    except OSError:
+        pass
 
 project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
