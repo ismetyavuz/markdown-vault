@@ -212,18 +212,44 @@ class VaultMonitor:
         except OSError:
             logger.warning("Could not list subdirs of %s", vault_path, exc_info=True)
 
+    def _emit_existing_entries(self, vault_path: str | None, dir_path: str) -> None:
+        """Emit created events for a directory and its existing contents.
+
+        Covers both the mkdir-p race (new dir already has children when
+        its CREATED event fires) and directory rename (new dir already
+        contains files that the tree must pick up).
+        """
+        if vault_path is None:
+            return
+        # The directory itself
+        self._emit_event(vault_path, dir_path, None, "created")
+        try:
+            for entry in os.listdir(dir_path):
+                child = os.path.join(dir_path, entry)
+                if entry.startswith("."):
+                    continue
+                if os.path.isdir(child):
+                    self._emit_event(vault_path, child, None, "created")
+                elif entry.endswith(".md"):
+                    self._emit_event(vault_path, child, None, "created")
+        except OSError:
+            logger.warning("Could not list entries of %s", dir_path, exc_info=True)
+
     def _stop_monitor(self, vault_path):
-        """Entfernt einen FileMonitor.
+        """Entfernt einen FileMonitor und alle Kind-Monitors.
 
         Args:
             vault_path: Pfad des Vault-Verzeichnisses
         """
-        monitor = self._monitors.pop(vault_path, None)
-        if monitor is not None:
-            try:
-                monitor.cancel()
-            except Exception:
-                logger.warning("Failed to cancel monitor for %s", vault_path, exc_info=True)
+        prefix = vault_path + os.sep
+        to_stop = [p for p in self._monitors if p == vault_path or p.startswith(prefix)]
+        for path in to_stop:
+            monitor = self._monitors.pop(path, None)
+            if monitor is not None:
+                try:
+                    monitor.cancel()
+                except Exception:
+                    logger.warning("Failed to cancel monitor for %s", path, exc_info=True)
 
     def _stop_all_monitors(self):
         """Entfernt alle FileMonitore."""
@@ -269,7 +295,12 @@ class VaultMonitor:
             fpath = file.get_path()
         else:
             fpath = str(file)
-        is_dir = os.path.isdir(fpath) if fpath else False
+        # For DELETED/RENAMED the path is gone from disk — use bookkeeping
+        # (fpath in self._monitors) to know it was a directory.  For CREATED
+        # the dir is new and not yet tracked, so fall back to os.path.isdir.
+        is_dir = (fpath in self._monitors
+                  if fpath and mapped_type != "created"
+                  else (os.path.isdir(fpath) if fpath else False))
 
         vault_path = self._get_vault_path(monitor)
 
@@ -277,17 +308,13 @@ class VaultMonitor:
         if is_dir and mapped_type in ("created", "deleted", "moved", "renamed"):
             if mapped_type == "created":
                 self._start_monitor(fpath)
-                # Signal existing subdirs so tree adds them (mkdir -p race)
-                if vault_path is not None:
-                    try:
-                        for entry in os.listdir(fpath):
-                            child = os.path.join(fpath, entry)
-                            if os.path.isdir(child) and not entry.startswith("."):
-                                self._emit_event(vault_path, child, None, "created")
-                    except OSError:
-                        logger.warning("Could not list subdirs of %s", fpath, exc_info=True)
+                self._emit_existing_entries(vault_path, fpath)
+                return
             elif mapped_type == "deleted":
                 self._stop_monitor(fpath)
+                if vault_path is not None:
+                    self._emit_event(vault_path, fpath, None, "deleted")
+                return
             elif mapped_type == "renamed" and other_file is not None:
                 old = fpath
                 new = (other_file.get_path()
@@ -295,6 +322,13 @@ class VaultMonitor:
                        else str(other_file))
                 self._stop_monitor(old)
                 self._start_monitor(new)
+                # Emit deleted for old + created for new (not "moved" —
+                # the tree handler treats moved as a file node with
+                # FILE_ICON, which is wrong for directories).
+                if vault_path is not None:
+                    self._emit_event(vault_path, old, None, "deleted")
+                self._emit_existing_entries(vault_path, new)
+                return
 
         # Filter: .md files and directories pass; everything else is ignored
         if mapped_type in ("created", "deleted", "moved", "renamed"):

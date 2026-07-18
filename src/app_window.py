@@ -1596,6 +1596,12 @@ class MainWindow(Adw.ApplicationWindow):
         """Handle file deleted event from VaultMonitor."""
         self._vault_tree._handle_file_deleted(file_path)
         if not file_path.endswith(".md"):
+            # Directory deleted — close any open tabs for files inside it
+            prefix = file_path + os.sep
+            for path in list(self._tab_bar.get_all_paths()):
+                if path.startswith(prefix):
+                    self._tab_bar.close_tab(path)
+                    self._backlink_index.remove_file(path)
             return
         self._backlink_index.remove_file(file_path)
         # Also close tab if file is open
