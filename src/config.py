@@ -160,6 +160,8 @@ _DEFAULT_SETTINGS = {
     "keybinding_next_tab": "<Control>Tab",
     "keybinding_prev_tab": "<Shift><Control>Tab",
     "tab_switch_mode": "mru",
+    "tab_min_width": 150,
+    "tab_wrap": False,
     "loglevel": "info",
     "third_party_loglevel": "warning",
 }

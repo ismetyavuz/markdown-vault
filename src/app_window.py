@@ -188,6 +188,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         self._register_actions()
         self._load_vaults()
+        self._tab_bar.set_tab_min_width(self._settings.get("tab_min_width", 100))
 
         # Restore session: sidebar, search, tabs, active tab, expanded vaults.
         sidebar_visible = _ses.get("sidebar_visible", False)
@@ -669,6 +670,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._vault_tree.set_vaults(paths)
         self._vault_monitor.set_vaults(paths)
         self._sidebar.set_vault_paths(paths)
+        self._tab_bar.set_vault_paths(paths)
         self._backlink_index.build(paths)
 
     # ── Vault switching ──────────────────────────────────────────
@@ -873,6 +875,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_vault_added(self, _tree, vault_path: str) -> None:
         """Handle a new vault being added."""
+        self._tab_bar.set_vault_paths(self._vault_tree.get_vault_paths())
         self._backlink_index.build([vault_path])
         self._switch_vault(vault_path)
 
@@ -1479,6 +1482,7 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_preferences_changed(self, _dlg) -> None:
         self._settings = config.load_settings()
         self._apply_keybindings()
+        self._tab_bar.set_tab_min_width(self._settings.get("tab_min_width", 100))
         # Apply to all open editors.
         for path in self._tab_bar.get_all_paths():
             tab = self._tab_bar.get_tab(path)

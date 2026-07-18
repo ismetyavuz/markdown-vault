@@ -133,6 +133,25 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self._wrap_row.set_child(self._wrap_switch)
         font_group.add(self._wrap_row)
 
+        # Tabs group.
+        tabs_group = Adw.PreferencesGroup(title="Tabs")
+        editor.add(tabs_group)
+
+        self._tab_width_row = Adw.ActionRow(title="Minimum tab width (px)")
+        self._tab_width_spin = Gtk.SpinButton.new_with_range(50, 300, 10)
+        self._tab_width_spin.set_value(self._settings.get("tab_min_width", 100))
+        self._tab_width_spin.connect("value-changed", self._on_tab_min_width_changed)
+        self._tab_width_row.add_suffix(self._tab_width_spin)
+        self._tab_width_row.activatable_widget = self._tab_width_spin
+        tabs_group.add(self._tab_width_row)
+
+        self._tab_wrap_row = Adw.SwitchRow(title="Wrap tabs")
+        self._tab_wrap_switch = Gtk.Switch()
+        self._tab_wrap_switch.set_active(self._settings.get("tab_wrap", False))
+        self._tab_wrap_switch.connect("notify::active", self._on_tab_wrap_changed)
+        self._tab_wrap_row.set_child(self._tab_wrap_switch)
+        tabs_group.add(self._tab_wrap_row)
+
         self.add(editor)
 
         # ── Preview page ────────────────────────────────────────────
@@ -260,6 +279,14 @@ class PreferencesDialog(Adw.PreferencesDialog):
 
     def _on_wrap_changed(self, switch: Gtk.Switch, _pspec) -> None:
         self._settings["editor_wrap_text"] = switch.get_active()
+        self._persist()
+
+    def _on_tab_min_width_changed(self, spin: Gtk.SpinButton) -> None:
+        self._settings["tab_min_width"] = int(spin.get_value())
+        self._persist()
+
+    def _on_tab_wrap_changed(self, switch: Gtk.Switch, _pspec) -> None:
+        self._settings["tab_wrap"] = switch.get_active()
         self._persist()
 
     def _on_zoom_changed(self, spin: Gtk.SpinButton) -> None:

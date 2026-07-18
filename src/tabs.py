@@ -12,8 +12,9 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
+gi.require_version("Gdk", "4.0")
 
-from gi.repository import Gtk, GObject
+from gi.repository import Gtk, GObject, Gio, Gdk
 
 logger = logging.getLogger(__name__)
 
@@ -56,18 +57,25 @@ class TabBar(Gtk.Box):
     Signals:
         tab-changed(str): Emitted when the active tab switches.
         tab-closed(str): Emitted when a tab is closed.
+        tab-renamed(str, str): Emitted when a tab is renamed.
+        tab-copy-path(str): Emitted when the user copies a tab path.
     """
 
     __gsignals__ = {
         "tab-changed": (GObject.SignalFlags.RUN_LAST, None, (str,)),
         "tab-closed": (GObject.SignalFlags.RUN_LAST, None, (str,)),
         "tab-renamed": (GObject.SignalFlags.RUN_LAST, None, (str, str)),
+        "tab-copy-path": (GObject.SignalFlags.RUN_LAST, None, (str,)),
     }
 
     def __init__(self) -> None:
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         self._tabs: dict[str, Tab] = {}
         self._current_path: str | None = None
+        self._vault_paths: list[str] = []
+        self._context_menu_target: str | None = None
+        self._min_width = 100
+        self._css_provider = Gtk.CssProvider()
 
         self._box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         self._box.add_css_class("tab-bar")
@@ -78,9 +86,85 @@ class TabBar(Gtk.Box):
         scrolled.set_policy(Gtk.PolicyType.EXTERNAL, Gtk.PolicyType.NEVER)
         self.append(scrolled)
 
+        self._setup_actions()
+
+    # ------------------------------------------------------------------
+    # Actions for context menu
+    # ------------------------------------------------------------------
+
+    def _setup_actions(self) -> None:
+        self._tab_actions = Gio.SimpleActionGroup()
+        self.insert_action_group("tab", self._tab_actions)
+
+        action_copy = Gio.SimpleAction.new("copy-path", None)
+        action_copy.connect("activate", self._on_action_copy_path)
+        self._tab_actions.add_action(action_copy)
+
+        action_close = Gio.SimpleAction.new("close", None)
+        action_close.connect("activate", self._on_action_close)
+        self._tab_actions.add_action(action_close)
+
+        action_close_others = Gio.SimpleAction.new("close-others", None)
+        action_close_others.connect("activate", self._on_action_close_others)
+        self._tab_actions.add_action(action_close_others)
+
+        action_close_left = Gio.SimpleAction.new("close-left", None)
+        action_close_left.connect("activate", self._on_action_close_left)
+        self._tab_actions.add_action(action_close_left)
+
+        action_close_right = Gio.SimpleAction.new("close-right", None)
+        action_close_right.connect("activate", self._on_action_close_right)
+        self._tab_actions.add_action(action_close_right)
+
+    def _on_action_copy_path(self, _action, _param) -> None:
+        path = self._context_menu_target
+        if not path:
+            return
+        display = Gdk.Display.get_default()
+        if display is None:
+            return
+        clipboard = display.get_clipboard()
+        clipboard.set(path)
+        self.emit("tab-copy-path", path)
+        logger.debug("Copied tab path to clipboard: %s", path)
+
+    def _on_action_close(self, _action, _param) -> None:
+        if self._context_menu_target:
+            self.close_tab(self._context_menu_target)
+
+    def _on_action_close_others(self, _action, _param) -> None:
+        if self._context_menu_target:
+            self.close_others(self._context_menu_target)
+
+    def _on_action_close_left(self, _action, _param) -> None:
+        if self._context_menu_target:
+            self.close_left(self._context_menu_target)
+
+    def _on_action_close_right(self, _action, _param) -> None:
+        if self._context_menu_target:
+            self.close_right(self._context_menu_target)
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    def set_vault_paths(self, vault_paths: list[str]) -> None:
+        """Set the vault root paths for computing relative tooltip paths."""
+        self._vault_paths = list(vault_paths)
+
+    def set_tab_min_width(self, min_width: int) -> None:
+        """Set the minimum width for tab widgets in pixels."""
+        self._min_width = min_width
+        css = f".tab {{ min-width: {min_width}px; }}"
+        try:
+            self._css_provider.load_from_string(css)
+        except TypeError:
+            self._css_provider.load_from_data(css.encode("utf-8"))
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(),
+            self._css_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+        )
 
     def add_tab(self, file_path: str, editor, preview, banner=None) -> Tab:
         """Register a new tab or activate an existing one.
@@ -122,6 +206,33 @@ class TabBar(Gtk.Box):
                 self.set_active_tab(remaining[-1])
             else:
                 self._current_path = None
+
+    def close_others(self, file_path: str) -> None:
+        """Close all tabs except the one at *file_path*."""
+        if file_path not in self._tabs:
+            return
+        for path in list(self._tabs.keys()):
+            if path != file_path:
+                self.close_tab(path)
+        self.set_active_tab(file_path)
+
+    def close_left(self, file_path: str) -> None:
+        """Close all tabs to the left of *file_path*."""
+        paths = self.get_all_paths()
+        if file_path not in paths:
+            return
+        idx = paths.index(file_path)
+        for path in paths[:idx]:
+            self.close_tab(path)
+
+    def close_right(self, file_path: str) -> None:
+        """Close all tabs to the right of *file_path*."""
+        paths = self.get_all_paths()
+        if file_path not in paths:
+            return
+        idx = paths.index(file_path)
+        for path in paths[idx + 1:]:
+            self.close_tab(path)
 
     def get_tab(self, file_path: str) -> Tab | None:
         """Return the ``Tab`` for *file_path*, or ``None``."""
@@ -165,13 +276,14 @@ class TabBar(Gtk.Box):
         if self._current_path == old_path:
             self._current_path = new_path
 
-        # Update the tab widget label and stash.
+        # Update the tab widget label, tooltip, and stash.
         for child in self._box:
             if getattr(child, "_file_path", None) == old_path:
                 child._file_path = new_path  # type: ignore[attr-defined]
                 for grandchild in child:
                     if isinstance(grandchild, Gtk.Label):
                         grandchild.set_label(tab.title)
+                child.set_tooltip_text(self._compute_relative_path(new_path))
                 break
 
         self.emit("tab-renamed", old_path, new_path)
@@ -179,6 +291,16 @@ class TabBar(Gtk.Box):
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _compute_relative_path(self, file_path: str) -> str:
+        """Compute a path relative to the matching vault root, or fall back to filename."""
+        for vault in self._vault_paths:
+            try:
+                rel = str(Path(file_path).relative_to(vault))
+                return rel
+            except ValueError:
+                continue
+        return Path(file_path).name
 
     def _build_tab_widget(self, file_path: str, title: str) -> Gtk.Box:
         """Create the visual widget for a single tab."""
@@ -204,6 +326,7 @@ class TabBar(Gtk.Box):
         )
         container.append(close_btn)
 
+        # Left-click: activate tab.
         gesture = Gtk.GestureClick()
         gesture.connect(
             "released",
@@ -211,9 +334,47 @@ class TabBar(Gtk.Box):
         )
         container.add_controller(gesture)
 
+        # Right-click: context menu.
+        right_click = Gtk.GestureClick()
+        right_click.set_button(3)  # GDK_BUTTON_SECONDARY
+        right_click.connect(
+            "released",
+            lambda _g, _n, _x, _y, cw=container: self._show_context_menu(cw, _x, _y),
+        )
+        container.add_controller(right_click)
+
+        # Tooltip with relative path.
+        container.set_tooltip_text(self._compute_relative_path(file_path))
+
         # Stash the path on the widget for style look-ups.
         container._file_path = file_path  # type: ignore[attr-defined]
         return container
+
+    def _show_context_menu(self, widget: Gtk.Box, x: float, y: float) -> None:
+        """Show the context menu for *widget* at the given coordinates."""
+        path = getattr(widget, "_file_path", None)
+        if not path:
+            return
+        self._context_menu_target = path
+
+        model = Gio.Menu()
+        model.append("Copy path", "tab.copy-path")
+        model.append("Close", "tab.close")
+        model.append("Close others", "tab.close-others")
+        model.append("Close left", "tab.close-left")
+        model.append("Close right", "tab.close-right")
+
+        popover = Gtk.PopoverMenu.new_from_model(model)
+        popover.set_parent(widget)
+        popover.set_has_arrow(False)
+
+        rect = Gdk.Rectangle()
+        rect.x = int(x)
+        rect.y = int(y)
+        rect.width = 1
+        rect.height = 1
+        popover.set_pointing_to(rect)
+        popover.popup()
 
     def _remove_tab_widget(self, file_path: str) -> None:
         """Remove the visual widget for *file_path*."""

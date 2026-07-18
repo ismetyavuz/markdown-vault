@@ -2,6 +2,11 @@
 
 import unittest
 
+import gi
+
+gi.require_version("Gtk", "4.0")
+from gi.repository import Gtk
+
 from src.tabs import Tab, TabBar
 
 
@@ -83,6 +88,186 @@ class TestTabBar(unittest.TestCase):
         # Should not raise.
         bar.update_path("/tmp/old.md", "/tmp/new.md")
         self.assertEqual(tab.file_path, "/tmp/new.md")
+
+
+class TestTabTooltip(unittest.TestCase):
+    """Tooltip mit relativem Pfad zum Vault-Root."""
+
+    def test_tooltip_shows_relative_path(self):
+        bar = TabBar()
+        bar.set_vault_paths(["/home/user/vault"])
+        tab_widget = bar._build_tab_widget(
+            "/home/user/vault/sub/note.md", "note.md"
+        )
+        tooltip = tab_widget.get_tooltip_text()
+        self.assertEqual(tooltip, "sub/note.md")
+
+    def test_tooltip_shows_filename_for_root_file(self):
+        bar = TabBar()
+        bar.set_vault_paths(["/home/user/vault"])
+        tab_widget = bar._build_tab_widget(
+            "/home/user/vault/readme.md", "readme.md"
+        )
+        tooltip = tab_widget.get_tooltip_text()
+        self.assertEqual(tooltip, "readme.md")
+
+    def test_tooltip_falls_back_to_filename_if_no_vault(self):
+        bar = TabBar()
+        tab_widget = bar._build_tab_widget(
+            "/some/random/path.md", "path.md"
+        )
+        tooltip = tab_widget.get_tooltip_text()
+        self.assertEqual(tooltip, "path.md")
+
+    def test_tooltip_falls_back_if_path_not_in_vault(self):
+        bar = TabBar()
+        bar.set_vault_paths(["/home/user/vault"])
+        tab_widget = bar._build_tab_widget(
+            "/other/dir/note.md", "note.md"
+        )
+        tooltip = tab_widget.get_tooltip_text()
+        self.assertEqual(tooltip, "note.md")
+
+    def test_add_tab_sets_tooltip(self):
+        bar = TabBar()
+        bar.set_vault_paths(["/home/user/vault"])
+        bar.add_tab("/home/user/vault/sub/doc.md", editor=None, preview=None)
+        for child in bar._box:
+            if getattr(child, "_file_path", None) == "/home/user/vault/sub/doc.md":
+                self.assertEqual(child.get_tooltip_text(), "sub/doc.md")
+                break
+        else:
+            self.fail("Tab widget not found")
+
+    def test_update_path_updates_tooltip(self):
+        bar = TabBar()
+        bar.set_vault_paths(["/home/user/vault"])
+        bar.add_tab("/home/user/vault/old.md", editor=None, preview=None)
+        bar.update_path("/home/user/vault/old.md", "/home/user/vault/sub/new.md")
+        for child in bar._box:
+            if getattr(child, "_file_path", None) == "/home/user/vault/sub/new.md":
+                self.assertEqual(child.get_tooltip_text(), "sub/new.md")
+                break
+        else:
+            self.fail("Tab widget not found")
+
+
+class TestTabContextMenu(unittest.TestCase):
+    """Kontextmenu: Copy path, Close, Close others, Close Left/Right."""
+
+    def test_tab_widget_has_rightclick_gesture(self):
+        bar = TabBar()
+        tab_widget = bar._build_tab_widget("/tmp/note.md", "note.md")
+        has_secondary = False
+        for ctrl in tab_widget.observe_controllers():
+            if isinstance(ctrl, Gtk.GestureClick):
+                if ctrl.get_button() == 3:  # GDK_BUTTON_SECONDARY
+                    has_secondary = True
+                    break
+        self.assertTrue(has_secondary)
+
+    def test_action_group_exists(self):
+        bar = TabBar()
+        self.assertIsNotNone(bar._tab_actions)
+
+    def test_copy_path_action_exists(self):
+        bar = TabBar()
+        self.assertIsNotNone(bar._tab_actions.lookup_action("copy-path"))
+
+    def test_close_action_exists(self):
+        bar = TabBar()
+        self.assertIsNotNone(bar._tab_actions.lookup_action("close"))
+
+    def test_close_others_action_exists(self):
+        bar = TabBar()
+        self.assertIsNotNone(bar._tab_actions.lookup_action("close-others"))
+
+    def test_close_left_action_exists(self):
+        bar = TabBar()
+        self.assertIsNotNone(bar._tab_actions.lookup_action("close-left"))
+
+    def test_close_right_action_exists(self):
+        bar = TabBar()
+        self.assertIsNotNone(bar._tab_actions.lookup_action("close-right"))
+
+
+class TestTabCloseOthers(unittest.TestCase):
+    """close_others schließt alle Tabs außer dem angegebenen."""
+
+    def test_close_others_keeps_target(self):
+        bar = TabBar()
+        bar.add_tab("/tmp/a.md", editor=None, preview=None)
+        bar.add_tab("/tmp/b.md", editor=None, preview=None)
+        bar.add_tab("/tmp/c.md", editor=None, preview=None)
+        bar.close_others("/tmp/b.md")
+        self.assertEqual(bar.get_all_paths(), ["/tmp/b.md"])
+
+    def test_close_others_removes_others(self):
+        bar = TabBar()
+        bar.add_tab("/tmp/a.md", editor=None, preview=None)
+        bar.add_tab("/tmp/b.md", editor=None, preview=None)
+        bar.add_tab("/tmp/c.md", editor=None, preview=None)
+        bar.close_others("/tmp/b.md")
+        self.assertNotIn("/tmp/a.md", bar.get_all_paths())
+        self.assertNotIn("/tmp/c.md", bar.get_all_paths())
+
+    def test_close_others_active_tab_becomes_target(self):
+        bar = TabBar()
+        bar.add_tab("/tmp/a.md", editor=None, preview=None)
+        bar.add_tab("/tmp/b.md", editor=None, preview=None)
+        bar.set_active_tab("/tmp/a.md")
+        bar.close_others("/tmp/b.md")
+        self.assertEqual(bar.get_current_path(), "/tmp/b.md")
+
+
+class TestTabCloseLeftRight(unittest.TestCase):
+    """close_left / close_right schließen Tabs relativ zur Position."""
+
+    def test_close_left_removes_tabs_before(self):
+        bar = TabBar()
+        bar.add_tab("/tmp/a.md", editor=None, preview=None)
+        bar.add_tab("/tmp/b.md", editor=None, preview=None)
+        bar.add_tab("/tmp/c.md", editor=None, preview=None)
+        bar.close_left("/tmp/b.md")
+        self.assertNotIn("/tmp/a.md", bar.get_all_paths())
+        self.assertIn("/tmp/b.md", bar.get_all_paths())
+        self.assertIn("/tmp/c.md", bar.get_all_paths())
+
+    def test_close_right_removes_tabs_after(self):
+        bar = TabBar()
+        bar.add_tab("/tmp/a.md", editor=None, preview=None)
+        bar.add_tab("/tmp/b.md", editor=None, preview=None)
+        bar.add_tab("/tmp/c.md", editor=None, preview=None)
+        bar.close_right("/tmp/b.md")
+        self.assertIn("/tmp/a.md", bar.get_all_paths())
+        self.assertIn("/tmp/b.md", bar.get_all_paths())
+        self.assertNotIn("/tmp/c.md", bar.get_all_paths())
+
+    def test_close_left_no_tabs_before(self):
+        bar = TabBar()
+        bar.add_tab("/tmp/a.md", editor=None, preview=None)
+        bar.close_left("/tmp/a.md")
+        self.assertEqual(bar.get_all_paths(), ["/tmp/a.md"])
+
+    def test_close_right_no_tabs_after(self):
+        bar = TabBar()
+        bar.add_tab("/tmp/a.md", editor=None, preview=None)
+        bar.close_right("/tmp/a.md")
+        self.assertEqual(bar.get_all_paths(), ["/tmp/a.md"])
+
+    def test_close_left_first_tab(self):
+        bar = TabBar()
+        bar.add_tab("/tmp/a.md", editor=None, preview=None)
+        bar.add_tab("/tmp/b.md", editor=None, preview=None)
+        bar.close_left("/tmp/a.md")
+        self.assertEqual(bar.get_all_paths(), ["/tmp/a.md", "/tmp/b.md"])
+
+    def test_close_right_last_tab(self):
+        bar = TabBar()
+        bar.add_tab("/tmp/a.md", editor=None, preview=None)
+        bar.add_tab("/tmp/b.md", editor=None, preview=None)
+        bar.close_right("/tmp/b.md")
+        self.assertEqual(bar.get_all_paths(), ["/tmp/a.md", "/tmp/b.md"])
 
 
 if __name__ == "__main__":
