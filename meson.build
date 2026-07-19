@@ -15,6 +15,6 @@ subdir('data')
 subdir('src')
 
 gnome.post_install(
-  hicolor_icon_cache: true,
+  gtk_update_icon_cache: true,
   update_desktop_database: true,
 )

@@ -1,3 +1,17 @@
-__pycache__/
+# Flatpak build artifacts
+build-dir/
+.flatpak-builder/
+repo/
+*.flatpak
+
+# Wheel files (downloaded on demand)
+data/*.whl
+data/*.tar.gz
+data/wheels/
+
+# Generated files
 *.pyc
+__pycache__/
+
+# Local temp
 tmp/

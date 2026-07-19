@@ -10,5 +10,10 @@ install_data(
   install_dir: get_option('datadir') / 'metainfo',
 )
 
+install_data(
+  'markdown-vault',
+  install_dir: get_option('bindir'),
+)
+
 subdir('icons')
 subdir('css')
