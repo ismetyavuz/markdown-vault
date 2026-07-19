@@ -52,7 +52,7 @@ Markdown Vault — a GNOME desktop app for editing and previewing Markdown files
 - **Zoom**: Ctrl+plus/minus/0 keyboard shortcuts; Ctrl+Wheel zoom on content area; per-tab zoom persisted in session.
 - **Session persistence**: window size, sidebar, tabs (view modes + split positions), active tab, expanded vaults, editor/preview zoom.
 - **Rich Markdown (pymdown-extensions)**: strikethrough `~~text~~`, highlight `==text==`, superscript `^sup^`, subscript `~sub~`, task lists `- [ ]`, tasklist `- [x]`, superfences (tabs, line numbers, highlight lines), magic links (auto URLs, @mentions, #issues), keyboard keys `++ctrl+c++`, smart symbols (quotes, dashes, ellipsis), emoji shortcodes `:smile:`, math formulas `$...$`, task lists with checkboxes.
-- **CLI launcher**: `bin/markdown-vault` mit Shebang; `setproctitle` für korrekten Prozessnamen (für `ps`/`killall`).
+- **CLI launcher**: `bin/markdown-vault` with shebang; `setproctitle` for correct process name (for `ps`/`killall`).
 
 ## Project structure (planned)
 
@@ -89,7 +89,7 @@ src/
       gtk.css                 — GTK CSS for tab bar and widgets
     meson.build               — Python package build rules
   share/markdown-vault/
-    css/style.css             — CSS (Kopie für Flatpak-Resource-Bundle)
+    css/style.css             — CSS (copy for Flatpak resource bundle)
     css/gtk.css
     icons/hicolor/            — icon theme
     de.hannemann.markdown-vault.desktop
@@ -101,34 +101,34 @@ meson.build            — top-level build system
 tests/                   — unit tests (unittest)
 ```
 
-**Installations-Pfade:**
-- **Binaries:** `~/.local/bin/` (user) oder `/usr/bin/` (system)
-- **Python-Code:** `~/.local/lib/python3.13/site-packages/markdown_vault/` oder `/usr/lib/python3.X/site-packages/markdown_vault/`
-- **Data-Files:** `~/.local/share/markdown-vault/` oder `/usr/share/markdown-vault/`
-- **Config:** `~/.config/markdown-vault/` (identisch für alle Installationen)
-- **State/Logs:** `~/.local/state/markdown-vault/` (identisch für alle Installationen)
+**Installation paths:**
+- **Binaries:** `~/.local/bin/` (user) or `/usr/bin/` (system)
+- **Python code:** `~/.local/lib/python3.13/site-packages/markdown_vault/` or `/usr/lib/python3.X/site-packages/markdown_vault/`
+- **Data files:** `~/.local/share/markdown-vault/` or `/usr/share/markdown-vault/`
+- **Config:** `~/.config/markdown-vault/` (identical for all installations)
+- **State/Logs:** `~/.local/state/markdown-vault/` (identical for all installations)
 
 ## Dev commands
 
 ```bash
-# App starten (wie User es tut)
+# Start app (as user would do it)
 gtk-launch de.hannemann.markdown-vault
 
-# App beenden (sauber, wie X-Klick — Session wird gespeichert)
+# Stop app (clean, like X click — session is saved)
 killall markdown-vault
 
-# Falls App hängt und nicht auf SIGTERM reagiert:
+# If app hangs and does not respond to SIGTERM:
 killall -9 markdown-vault
 
-# Lokale Tests (vom Projekt-Root)
+# Run local tests (from project root)
 PYTHONPATH=src/lib/python3.13/site-packages python3 -m unittest discover -s tests -v
 
-# Oder mit make
+# Or with make
 make test
 ```
 
 ```bash
-# NICHT killall python3 — das killt auch firewalld & andere System-Python-Prozesse!
+# DO NOT use killall python3 — that also kills firewalld and other system Python processes!
 
 # Install dependencies (openSUSE Tumbleweed)
 sudo zypper install python3-gobject python3-gobject-Gdk gtk4-devel gtk4-tools \
@@ -204,7 +204,7 @@ python3 -m unittest discover -s tests -v
 - On Flatpak, file access is sandboxed — use `org.freedesktop.portal` for file chooser.
 - GtkSourceView 5 renamed `begin_not_undoable_action` → `begin_irreversible_action`.
 - `editor.file_path` is a `str`, not `Path` — use `Path(editor.file_path).parent` for directory.
-- Kill all existing app instances before starting a new one: Immer `./scripts/test-app.sh` verwenden — nie manuell `pkill` oder `killall` (läuft in Timeout). Duplicate instances cause confusing state.
+- Kill all existing app instances before starting a new one: Always use `./scripts/test-app.sh` — never manually `pkill` or `killall` (runs in timeout). Duplicate instances cause confusing state.
 - Shift+Tab generates `Gdk.KEY_ISO_Left_Tab`, not `Gdk.KEY_Tab`. Always check for both keyvals.
 - **Gtk.Stack remove/add destroys WebView DOM**: When a tab is renamed externally, `_on_tab_renamed` removes and re-adds the content stack child. This destroys the WebView's rendered DOM, but `_loaded` and `_last_html_hash` remain stale. Always call `preview.reset()` before `_refresh_preview()` after stack manipulation.
 - **Tab button closures capture file_path**: Close buttons and click gestures in `TabBar._build_tab_widget` must read `_file_path` from the container widget at click time, not capture `file_path` at creation time. After `update_path()`, the old capture points to a dead path.
@@ -222,7 +222,7 @@ python3 -m unittest discover -s tests -v
   - Skip mechanism: ref-counted `_skip_paths` dict for user-initiated operations
 
 - **Integration & E2E Tests**
-  - *Integration*: pytest + Xvfb (headless Display) — Widget-API-Tests für Tab-Handling, Editor↔Preview-Sync, Split-View, Vault-Tree-Expansion, Session-Restore
-  - *E2E*: pytest + dogtail/pyatspi (AT-SPI Accessibility) — echte Tastatur/Maus-Events via Accessibility-Bus
-  - Ziel: 80% kritische Pfade über Integration abdecken, E2E für User-Flows (New File, Open Vault, Preferences, Zoom)
-  - CI: GitHub Actions / GitLab CI mit `xvfb-run` und `libatspi2.0-0`
+  - *Integration*: pytest + Xvfb (headless display) — Widget API tests for tab handling, editor↔preview sync, split view, vault tree expansion, session restore
+  - *E2E*: pytest + dogtail/pyatspi (AT-SPI accessibility) — real keyboard/mouse events via accessibility bus
+  - Goal: cover 80% of critical paths via integration tests, E2E for user flows (new file, open vault, preferences, zoom)
+  - CI: GitHub Actions / GitLab CI with `xvfb-run` and `libatspi2.0-0`
