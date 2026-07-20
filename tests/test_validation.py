@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from markdown_vault.validation import validate_rename, validate_drop
+from markdown_vault.validation import validate_rename, validate_drop, validate_new_item
 
 
 class TestValidateRename(unittest.TestCase):
@@ -86,6 +86,66 @@ class TestValidateDrop(unittest.TestCase):
 
     def test_drop_on_file_rejected(self):
         self.assertIsNotNone(validate_drop("/vault/file.md", "/vault/other_file.md", False))
+
+
+class TestValidateNewItem(unittest.TestCase):
+    """Tests for validate_new_item()."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp()
+        self._vault = Path(self._tmp) / "vault"
+        self._vault.mkdir()
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def test_empty_name(self):
+        self.assertIsNotNone(validate_new_item("", str(self._vault)))
+
+    def test_whitespace_name(self):
+        self.assertIsNotNone(validate_new_item("   ", str(self._vault)))
+
+    def test_leading_trailing_whitespace(self):
+        self.assertIsNotNone(validate_new_item("  note.md  ", str(self._vault)))
+
+    def test_absolute_path_rejected(self):
+        self.assertIsNotNone(validate_new_item("/tmp/note.md", str(self._vault)))
+
+    def test_absolute_path_no_dir(self):
+        self.assertIsNotNone(validate_new_item("/etc/note", str(self._vault)))
+
+    def test_path_traversal_simple(self):
+        self.assertIsNotNone(validate_new_item("../note.md", str(self._vault)))
+
+    def test_path_traversal_nested(self):
+        self.assertIsNotNone(validate_new_item("sub/../../note.md", str(self._vault)))
+
+    def test_path_traversal_deep(self):
+        self.assertIsNotNone(validate_new_item("../../tmp/pwned", str(self._vault)))
+
+    def test_valid_simple_name(self):
+        self.assertIsNone(validate_new_item("note.md", str(self._vault)))
+
+    def test_valid_subdirectory(self):
+        self.assertIsNone(validate_new_item("sub/note.md", str(self._vault)))
+
+    def test_valid_nested_subdirectory(self):
+        self.assertIsNone(validate_new_item("a/b/c/note.md", str(self._vault)))
+
+    def test_valid_folder_name(self):
+        self.assertIsNone(validate_new_item("My Folder", str(self._vault)))
+
+    def test_valid_folder_with_subdir(self):
+        self.assertIsNone(validate_new_item("My Folder/nested.md", str(self._vault)))
+
+    def test_backslash_is_valid_filename_on_linux(self):
+        """On Linux \\ is a valid filename character, not a path separator."""
+        self.assertIsNone(validate_new_item("sub\\note.md", str(self._vault)))
+
+    def test_resolved_path_containment(self):
+        """Realpath containment: parent_dir itself is a realpath."""
+        self.assertIsNone(validate_new_item("note.md", str(self._vault)))
 
 
 if __name__ == "__main__":
