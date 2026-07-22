@@ -53,6 +53,7 @@ class TestSaveDialogResponse(unittest.TestCase):
                 self._tab_bar = tab_bar
                 self._vault_monitor = unittest.mock.Mock()
                 self._vault_monitor.skip_next_event = unittest.mock.Mock()
+                self._close_window_pending = False
 
             # Kopiere die Methoden vom echten Window
             _on_save_dialog_response = aw.MainWindow._on_save_dialog_response
